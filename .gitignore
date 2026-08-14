@@ -1,0 +1,13 @@
+# 备份文件
+*.skinbak
+
+# 临时解包目录
+zcode-skin-patch/
+
+# Python
+__pycache__/
+*.pyc
+
+# 系统
+Thumbs.db
+.DS_Store
