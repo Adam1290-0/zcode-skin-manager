@@ -9,6 +9,8 @@ echo.
 
 set ASAR_PATH=H:\Zcode\resources\app.asar
 set BACKUP_PATH=H:\Zcode\resources\app.asar.skinbak
+set UNPACKED_PATH=H:\Zcode\resources\app.asar.unpacked
+set BACKUP_UNPACKED=H:\Zcode\resources\app.asar.skinbak.unpacked
 
 :: Check if ZCode is running
 tasklist /FI "IMAGENAME eq ZCode.exe" 2>nul | find /I "ZCode.exe" >nul
@@ -35,6 +37,10 @@ if %errorlevel% neq 0 (
     echo [ERROR] Restore failed
     pause
     exit /b 1
+)
+if exist "%BACKUP_UNPACKED%" (
+    rmdir /S /Q "%UNPACKED_PATH%" 2>nul
+    xcopy "%BACKUP_UNPACKED%" "%UNPACKED_PATH%" /E /I /Y >nul
 )
 
 echo.

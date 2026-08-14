@@ -19,6 +19,8 @@ if %errorlevel% equ 0 (
 
 set ASAR_PATH=H:\Zcode\resources\app.asar
 set BACKUP_PATH=H:\Zcode\resources\app.asar.skinbak
+set UNPACKED_PATH=H:\Zcode\resources\app.asar.unpacked
+set BACKUP_UNPACKED=H:\Zcode\resources\app.asar.skinbak.unpacked
 set INJECT_JS=ui_skin.js
 
 :: Check files exist
@@ -34,10 +36,10 @@ if not exist "%INJECT_JS%" (
     exit /b 1
 )
 
-:: Backup original asar
+:: Backup original asar AND its unpacked dir (both are required by extract)
 if not exist "%BACKUP_PATH%" (
     echo [1/4] Creating backup...
-    copy "%ASAR_PATH%" "%BACKUP_PATH%" >nul
+    copy /Y "%ASAR_PATH%" "%BACKUP_PATH%" >nul
     if !errorlevel! neq 0 (
         echo [ERROR] Backup failed
         pause
@@ -46,6 +48,12 @@ if not exist "%BACKUP_PATH%" (
     echo       Backup saved: app.asar.skinbak
 ) else (
     echo [1/4] Backup already exists, skip.
+)
+if not exist "%BACKUP_UNPACKED%" (
+    if exist "%UNPACKED_PATH%" (
+        xcopy "%UNPACKED_PATH%" "%BACKUP_UNPACKED%" /E /I /Y >nul
+        echo       Backup saved: app.asar.skinbak.unpacked
+    )
 )
 
 :: Extract asar (always from the ORIGINAL backup, so re-patching works)
@@ -76,13 +84,16 @@ if !errorlevel! neq 0 (
     exit /b 1
 )
 
-:: Repack asar
+:: Repack asar. MUST --unpack native binaries (node/dll/exe) or ZCode terminal/SSH breaks.
 echo [4/4] Repacking asar (this may take 2-3 minutes)...
-call npx --yes @electron/asar pack "%EXTRACT_DIR%" "%ASAR_PATH%"
+rmdir /S /Q "%UNPACKED_PATH%" 2>nul
+call npx --yes @electron/asar pack "%EXTRACT_DIR%" "%ASAR_PATH%" --unpack "*.{node,dll,exe}"
 if !errorlevel! neq 0 (
     echo [ERROR] Repacking failed
     echo Restoring backup...
     copy /Y "%BACKUP_PATH%" "%ASAR_PATH%" >nul
+    rmdir /S /Q "%UNPACKED_PATH%" 2>nul
+    if exist "%BACKUP_UNPACKED%" xcopy "%BACKUP_UNPACKED%" "%UNPACKED_PATH%" /E /I /Y >nul
     pause
     exit /b 1
 )

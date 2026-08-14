@@ -1,5 +1,7 @@
 # ZCode Skin Manager / ZCode 皮肤管理器
 
+> **当前版本 / Current version：`v1.1.0`** — 适配 ZCode 3.7.6（Electron 41.0.3）
+
 [English](#english) · [中文](#中文)
 
 给 [ZCode](https://zcode.z.ai) 桌面端加上「皮肤设置」功能：壁纸（图片/视频）、分区透明度、毛玻璃、动态特效，右上角一个可拖动的 🎨 按钮一键调节。
@@ -9,6 +11,10 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 > ⚠️ 本项目是**社区第三方补丁**，通过修改 ZCode 的 `app.asar` 注入前端脚本实现，**与 ZCode 官方无关**。使用前请阅读 [DISCLAIMER.md](DISCLAIMER.md) 和 [COMPATIBILITY.md](COMPATIBILITY.md)。
 >
 > ⚠️ This is a **community third-party patch**. It works by modifying ZCode's `app.asar` and injecting a frontend script, and is **not affiliated with ZCode**. Read [DISCLAIMER.md](DISCLAIMER.md) and [COMPATIBILITY.md](COMPATIBILITY.md) before use.
+
+> **📌 版本要求 / Version requirement**：本补丁**仅针对 ZCode 3.7.6（Electron 41.0.3）开发和验证**，**其他版本不保证可用**。使用前请确认你的 ZCode 版本，详见 [COMPATIBILITY.md](COMPATIBILITY.md)。
+>
+> **📌 This patch is developed and tested ONLY against ZCode 3.7.6 (Electron 41.0.3). Other versions are NOT guaranteed to work.** Verify your ZCode version before use — see [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ---
 
@@ -161,6 +167,18 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 关键点：
 - 壁纸用 `<img>`/`<video>` 元素挂载（官方 `html,body,#root{background:0 0!important}` 封死了 background 挂图）
 - 必须覆盖 `--color-background-win-alt`（主 UI 根容器用它）
+
+## 更新日志 / Changelog
+
+### v1.1.0
+
+- 🎯 修复皮肤按钮在窗口缩放/全屏切换后「丢失」的问题（改用相对位置锚点，不再存绝对像素）
+- 🧩 修复 `patch.bat`/`unpatch.bat` 未备份/未保留 `app.asar.unpacked` 原生模块（node-pty/ssh2）导致终端/SSH 损坏的问题
+- 📌 README/COMPATIBILITY 明确标注仅适配 ZCode 3.7.6（Electron 41.0.3）
+
+### v1.0.0
+
+- 首个版本：壁纸、分区透明度、毛玻璃、动态特效、视频壁纸、预设主题、配置导入导出
 
 ## License
 

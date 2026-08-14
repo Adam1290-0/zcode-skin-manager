@@ -579,9 +579,19 @@
   }
 
   function initUI(c) {
-    // 读取上次拖拽位置（默认右上角，避开窗口控制按钮）
+    // 读取上次拖拽位置（默认右上角，避开窗口控制按钮）。
+    // 存相对比例（0-1），窗口缩放/全屏切换后按钮仍保持在可视区内；兼容旧版绝对像素格式。
     var savedPos = null;
     try { savedPos = JSON.parse(localStorage.getItem(LS_KEY + "-btnpos")); } catch (e) {}
+    var btnPos = null;
+    if (savedPos) {
+      if (typeof savedPos.rx === "number" && typeof savedPos.ry === "number") {
+        btnPos = { rx: savedPos.rx, ry: savedPos.ry };
+      } else if (typeof savedPos.x === "number" && typeof savedPos.y === "number") {
+        var vw0 = window.innerWidth || 1, vh0 = window.innerHeight || 1;
+        btnPos = { rx: savedPos.x / vw0, ry: savedPos.y / vh0 };
+      }
+    }
     var btn = el(
       "button",
       "position:fixed;right:16px;top:64px;z-index:2147483000;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(25,25,25,.72);color:#fff;font-size:16px;cursor:grab;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;backdrop-filter:blur(8px);box-shadow:0 2px 10px rgba(0,0,0,.35);-webkit-app-region:no-drag;touch-action:none"
@@ -590,11 +600,19 @@
     btn.textContent = "🎨";
     btn.title = "皮肤设置（拖动可移动位置）";
     document.body.appendChild(btn);
-    if (savedPos && typeof savedPos.x === "number" && typeof savedPos.y === "number") {
+    // 无记录时保持 CSS 默认（右上角，天然自适应窗口）；有记录时按比例定位并 clamp 到可视区
+    function placeBtn() {
+      if (!btnPos) return;
+      var w = window.innerWidth, h = window.innerHeight;
+      var bw = btn.offsetWidth || 34, bh = btn.offsetHeight || 34;
+      var left = Math.max(0, Math.min(w - bw, btnPos.rx * w));
+      var top = Math.max(0, Math.min(h - bh, btnPos.ry * h));
       btn.style.right = "auto";
-      btn.style.left = savedPos.x + "px";
-      btn.style.top = savedPos.y + "px";
+      btn.style.left = left + "px";
+      btn.style.top = top + "px";
     }
+    placeBtn();
+    window.addEventListener("resize", placeBtn);
 
     var panel = el(
       "div",
@@ -637,7 +655,9 @@
       btn.style.right = "auto";
       btn.style.left = rect.left + "px";
       btn.style.top = rect.top + "px";
-      localStorage.setItem(LS_KEY + "-btnpos", JSON.stringify({ x: rect.left, y: rect.top }));
+      var w = window.innerWidth || 1, h = window.innerHeight || 1;
+      btnPos = { rx: rect.left / w, ry: rect.top / h };
+      localStorage.setItem(LS_KEY + "-btnpos", JSON.stringify(btnPos));
     });
 
     btn.onclick = function (e) {
