@@ -1,6 +1,6 @@
 # ZCode Skin Manager / ZCode 皮肤管理器
 
-> **当前版本 / Current version：`v1.1.0`** — 适配 ZCode 3.7.6（Electron 41.0.3）
+> **当前版本 / Current version：`v1.2.0`** — 已验证 ZCode 3.7.6 / 3.8.1
 
 [English](#english) · [中文](#中文)
 
@@ -12,9 +12,9 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 >
 > ⚠️ This is a **community third-party patch**. It works by modifying ZCode's `app.asar` and injecting a frontend script, and is **not affiliated with ZCode**. Read [DISCLAIMER.md](DISCLAIMER.md) and [COMPATIBILITY.md](COMPATIBILITY.md) before use.
 
-> **📌 版本要求 / Version requirement**：本补丁**仅针对 ZCode 3.7.6（Electron 41.0.3）开发和验证**，**其他版本不保证可用**。使用前请确认你的 ZCode 版本，详见 [COMPATIBILITY.md](COMPATIBILITY.md)。
+> **📌 版本要求 / Version requirement**：本补丁**已在 ZCode 3.7.6 / 3.8.1 上开发和验证**，**其他版本不保证可用**。使用前请确认你的 ZCode 版本，详见 [COMPATIBILITY.md](COMPATIBILITY.md)。
 >
-> **📌 This patch is developed and tested ONLY against ZCode 3.7.6 (Electron 41.0.3). Other versions are NOT guaranteed to work.** Verify your ZCode version before use — see [COMPATIBILITY.md](COMPATIBILITY.md).
+> **📌 This patch is developed and tested against ZCode 3.7.6 / 3.8.1. Other versions are NOT guaranteed to work.** Verify your ZCode version before use — see [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ---
 
@@ -25,7 +25,7 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 
 - 🎨 Draggable skin button in the top-right corner (position is remembered)
 - 🖼️ Wallpaper: static image / GIF / animated WebP / **video wallpaper** (webm)
-- 🪟 Per-region opacity: 11 independent sliders (main area, sidebar, header, panel, card, input, terminal, border, etc.)
+- 🪟 Per-region opacity: 14 independent sliders (main area, background, surface, sidebar, header, panel, card, input, terminal, border, etc.)
 - 🌫️ Frosted glass (backdrop-filter) + wallpaper blur
 - ✨ Dynamic effects: starfield / snow / aurora gradient
 - 🎬 Video wallpaper controls: playback speed, pause
@@ -166,9 +166,14 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 
 关键点：
 - 壁纸用 `<img>`/`<video>` 元素挂载（官方 `html,body,#root{background:0 0!important}` 封死了 background 挂图）
-- 必须覆盖 `--color-background-win-alt`（主 UI 根容器用它）
+- 必须覆盖 `--color-background-win-alt` / `--color-background` / `--color-surface`（主 UI 根容器和表面层用它们）
 
 ## 更新日志 / Changelog
+
+### v1.2.0
+
+- 🆙 适配 ZCode 3.8.1：新增 `--color-background-alt`、`--color-surface`、`--color-surface-hover` 三个分区透明度滑杆（3.8.1 大量使用 `bg-surface` 类，旧补丁会让这些区域保持不透明）
+- 🎯 继续支持 3.7.6 的核心变量（`--color-background-win-alt` 等）
 
 ### v1.1.0
 

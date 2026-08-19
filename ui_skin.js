@@ -27,6 +27,9 @@
     opacities: {
       backgroundWinAlt: 0.35,
       background: 0.45,
+      backgroundAlt: 0.45,
+      surface: 0.45,
+      surfaceHover: 0.5,
       sidebar: 0.55,
       header: 0.5,
       panel: 0.6,
@@ -42,6 +45,9 @@
   var VAR_MAP = {
     backgroundWinAlt: "--color-background-win-alt",
     background: "--color-background",
+    backgroundAlt: "--color-background-alt",
+    surface: "--color-surface",
+    surfaceHover: "--color-surface-hover",
     sidebar: "--color-sidebar",
     header: "--color-header",
     panel: "--color-panel",
@@ -56,6 +62,9 @@
   var LABELS = {
     backgroundWinAlt: "主区域",
     background: "背景",
+    backgroundAlt: "背景2",
+    surface: "表面",
+    surfaceHover: "悬停表面",
     sidebar: "侧栏",
     header: "顶栏",
     panel: "面板",
@@ -72,22 +81,22 @@
     "暗夜玻璃": {
       tint: "20,20,26",
       blurPanel: 20,
-      opacities: { backgroundWinAlt: 0.3, background: 0.4, sidebar: 0.45, header: 0.45, panel: 0.5, card: 0.55, input: 0.6, tooltip: 0.9, menu: 0.9, terminal: 0.88, border: 0.1 }
+      opacities: { backgroundWinAlt: 0.3, background: 0.4, backgroundAlt: 0.4, surface: 0.4, surfaceHover: 0.45, sidebar: 0.45, header: 0.45, panel: 0.5, card: 0.55, input: 0.6, tooltip: 0.9, menu: 0.9, terminal: 0.88, border: 0.1 }
     },
     "极简透明": {
       tint: "10,10,10",
       blurPanel: 8,
-      opacities: { backgroundWinAlt: 0.22, background: 0.3, sidebar: 0.35, header: 0.35, panel: 0.4, card: 0.45, input: 0.5, tooltip: 0.85, menu: 0.85, terminal: 0.85, border: 0.08 }
+      opacities: { backgroundWinAlt: 0.22, background: 0.3, backgroundAlt: 0.3, surface: 0.3, surfaceHover: 0.35, sidebar: 0.35, header: 0.35, panel: 0.4, card: 0.45, input: 0.5, tooltip: 0.85, menu: 0.85, terminal: 0.85, border: 0.08 }
     },
     "暖色护眼": {
       tint: "40,32,24",
       blurPanel: 4,
-      opacities: { backgroundWinAlt: 0.5, background: 0.55, sidebar: 0.6, header: 0.55, panel: 0.6, card: 0.65, input: 0.7, tooltip: 0.9, menu: 0.9, terminal: 0.9, border: 0.15 }
+      opacities: { backgroundWinAlt: 0.5, background: 0.55, backgroundAlt: 0.55, surface: 0.55, surfaceHover: 0.6, sidebar: 0.6, header: 0.55, panel: 0.6, card: 0.65, input: 0.7, tooltip: 0.9, menu: 0.9, terminal: 0.9, border: 0.15 }
     },
     "高对比": {
       tint: "0,0,0",
       blurPanel: 0,
-      opacities: { backgroundWinAlt: 0.4, background: 0.5, sidebar: 0.6, header: 0.55, panel: 0.65, card: 0.7, input: 0.75, tooltip: 0.98, menu: 0.98, terminal: 0.95, border: 0.2 }
+      opacities: { backgroundWinAlt: 0.4, background: 0.5, backgroundAlt: 0.5, surface: 0.5, surfaceHover: 0.55, sidebar: 0.6, header: 0.55, panel: 0.65, card: 0.7, input: 0.75, tooltip: 0.98, menu: 0.98, terminal: 0.95, border: 0.2 }
     }
   };
 
