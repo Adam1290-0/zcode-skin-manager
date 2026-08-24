@@ -1,6 +1,6 @@
 # ZCode Skin Manager / ZCode 皮肤管理器
 
-> **当前版本 / Current version：`v1.2.0`** — 已验证 ZCode 3.7.6 / 3.8.1
+> **当前版本 / Current version：`v1.3.0`** — 适配 ZCode 3.9.1
 
 [English](#english) · [中文](#中文)
 
@@ -12,9 +12,9 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 >
 > ⚠️ This is a **community third-party patch**. It works by modifying ZCode's `app.asar` and injecting a frontend script, and is **not affiliated with ZCode**. Read [DISCLAIMER.md](DISCLAIMER.md) and [COMPATIBILITY.md](COMPATIBILITY.md) before use.
 
-> **📌 版本要求 / Version requirement**：本补丁**已在 ZCode 3.7.6 / 3.8.1 上开发和验证**，**其他版本不保证可用**。使用前请确认你的 ZCode 版本，详见 [COMPATIBILITY.md](COMPATIBILITY.md)。
+> **📌 版本要求 / Version requirement**：本补丁**已在 ZCode 3.7.6 / 3.8.1 / 3.9.1 上开发和验证**，**其他版本不保证可用**。使用前请确认你的 ZCode 版本，详见 [COMPATIBILITY.md](COMPATIBILITY.md)。
 >
-> **📌 This patch is developed and tested against ZCode 3.7.6 / 3.8.1. Other versions are NOT guaranteed to work.** Verify your ZCode version before use — see [COMPATIBILITY.md](COMPATIBILITY.md).
+> **📌 This patch is developed and tested against ZCode 3.7.6 / 3.8.1 / 3.9.1. Other versions are NOT guaranteed to work.** Verify your ZCode version before use — see [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ---
 
@@ -169,6 +169,10 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 - 必须覆盖 `--color-background-win-alt` / `--color-background` / `--color-surface`（主 UI 根容器和表面层用它们）
 
 ## 更新日志 / Changelog
+
+### v1.3.0
+
+- 🆙 适配 ZCode 3.9.1（核心变量 `--color-background-win-alt` / `--color-background` / `--color-surface` / `--color-surface-hover` 全部仍在，兼容 3.7.6 / 3.8.1）
 
 ### v1.2.0
 
