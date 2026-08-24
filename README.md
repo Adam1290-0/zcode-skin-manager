@@ -1,6 +1,6 @@
 # ZCode Skin Manager / ZCode 皮肤管理器
 
-> **当前版本 / Current version：`v1.3.0`** — 适配 ZCode 3.9.1
+> **当前版本 / Current version：`v1.4.0`** — 适配 ZCode 3.9.1
 
 [English](#english) · [中文](#中文)
 
@@ -26,6 +26,8 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 - 🎨 Draggable skin button in the top-right corner (position is remembered)
 - 🖼️ Wallpaper: static image / GIF / animated WebP / **video wallpaper** (webm)
 - 🪟 Per-region opacity: 14 independent sliders (main area, background, surface, sidebar, header, panel, card, input, terminal, border, etc.)
+- 🔴 **Live region preview**: dragging a slider draws a pulsing red outline around every UI region it affects — see exactly what you're changing
+- ⏳ **Loading spinner customization**: recolor the spinning "working" indicator, or replace it with your own GIF
 - 🌫️ Frosted glass (backdrop-filter) + wallpaper blur
 - ✨ Dynamic effects: starfield / snow / aurora gradient
 - 🎬 Video wallpaper controls: playback speed, pause
@@ -101,7 +103,9 @@ Key points:
 
 - 🎨 右上角可拖动的皮肤按钮（位置自动记忆）
 - 🖼️ 壁纸：静态图 / GIF / 动态 WebP / **视频壁纸**（webm）
-- 🪟 分区透明度：11 个独立滑杆（主区、侧栏、顶栏、面板、卡片、输入框、终端、边框等）
+- 🪟 分区透明度：14 个独立滑杆（主区、背景、表面、侧栏、顶栏、面板、卡片、输入框、终端、边框等）
+- 🔴 **滑块高亮预览**：拖动/悬停某个透明度滑杆时，页面上所有受该设置影响的区域会显示脉动红框，直观看到改的是哪里
+- ⏳ **处理中图标定制**：加载旋转圈可换颜色，也可替换成自己的 GIF 动图
 - 🌫️ 毛玻璃（backdrop-filter）+ 壁纸模糊
 - ✨ 动态特效：星空 / 飘雪 / 极光渐变
 - 🎬 视频壁纸控制：播放速度、暂停
@@ -168,7 +172,12 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 - 壁纸用 `<img>`/`<video>` 元素挂载（官方 `html,body,#root{background:0 0!important}` 封死了 background 挂图）
 - 必须覆盖 `--color-background-win-alt` / `--color-background` / `--color-surface`（主 UI 根容器和表面层用它们）
 
-## 更新日志 / Changelog
+### 更新日志 / Changelog
+
+### v1.4.0
+
+- 🔴 **滑块高亮预览**：拖动/悬停透明度滑杆时，受影响的 UI 区域显示脉动红框（拖「侧栏」时侧栏被框住，一目了然；终端和边框两项因渲染方式特殊暂不支持）
+- ⏳ **处理中图标定制**：侧栏/任务里旋转的加载圈可自定义颜色，或整体替换成 GIF 动图（面板内含实时预览）
 
 ### v1.3.0
 

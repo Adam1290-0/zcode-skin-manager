@@ -24,6 +24,8 @@
     videoPaused: false,
     tint: "22,22,22",
     effect: "none",
+    spinnerColor: "",
+    spinnerGif: "",
     opacities: {
       backgroundWinAlt: 0.35,
       background: 0.45,
@@ -205,7 +207,24 @@
       st.id = STYLE_ID;
       document.head.appendChild(st);
     }
-    st.textContent = c.enabled ? buildCss(c) : "";
+    if (!c.enabled) { st.textContent = ""; return; }
+    var css = buildCss(c);
+
+    // 会话/任务「处理中」旋转图标：ZCode 用 .animate-spin + currentColor（lucide 圆弧 SVG）。
+    // 换色：直接改 color；换 GIF：隐藏 svg 旋转圈，用 background-image 盖一个同尺寸 GIF。
+    var spinCss = [];
+    if (c.spinnerColor) {
+      spinCss.push(".animate-spin{color:" + c.spinnerColor + " !important}");
+    }
+    if (c.spinnerGif) {
+      spinCss.push(
+        ".animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;" +
+        "background:center/contain no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important}" +
+        ".animate-spin>*,.animate-spin svg{display:none !important}"
+      );
+    }
+    if (spinCss.length) css += spinCss.join("");
+    st.textContent = css;
   }
 
   function applyImgs(c) {
@@ -319,6 +338,78 @@
       ctx.globalAlpha = 1;
     }
     fxTimer = setInterval(frame, 1000 / 30);
+  }
+
+  /* ---------- 滑块高亮预览：拖动/悬停滑块时用红框标出受影响的区域 ---------- */
+
+  var HL_STYLE_ID = "zcode-skin-hl-style";
+  // 每个 CSS 变量对应页面上带该背景色的 Tailwind 类，用于反查 DOM 元素
+  var HIGHLIGHT_CLASS = {
+    backgroundWinAlt: ".bg-background-win-alt",
+    background: ".bg-background",
+    backgroundAlt: ".bg-background-alt",
+    surface: ".bg-surface",
+    surfaceHover: ".bg-surface-hover",
+    sidebar: ".bg-sidebar",
+    header: ".bg-header",
+    panel: ".bg-panel",
+    card: ".bg-card",
+    input: ".bg-input",
+    tooltip: ".bg-tooltip",
+    menu: ".bg-menu",
+    terminal: null, // 终端背景在 xterm 内部 canvas 上，无法用类名定位
+    border: null    // 边框是描边不是色块，高亮所有边框元素太吵
+  };
+
+  function ensureHlStyle() {
+    var st = document.getElementById(HL_STYLE_ID);
+    if (!st) {
+      st = document.createElement("style");
+      st.id = HL_STYLE_ID;
+      st.textContent =
+        "@keyframes zc-skin-pulse{0%,100%{outline-color:rgba(255,64,64,.95)}50%{outline-color:rgba(255,64,64,.25)}}" +
+        ".zc-skin-hl{outline:3px solid rgba(255,64,64,.95) !important;outline-offset:-3px !important;" +
+        "animation:zc-skin-pulse 1s ease-in-out infinite !important;z-index:2147482000;position:relative}";
+      document.head.appendChild(st);
+    }
+    return st;
+  }
+
+  function clearHighlight() {
+    document.querySelectorAll(".zc-skin-hl").forEach(function (n) { n.classList.remove("zc-skin-hl"); });
+  }
+
+  function highlightKey(key) {
+    ensureHlStyle();
+    clearHighlight();
+    var sel = HIGHLIGHT_CLASS[key];
+    if (!sel) return;
+    var nodes = document.querySelectorAll(sel);
+    var count = Math.min(nodes.length, 400); // 上限保护，避免极端情况下卡顿
+    for (var i = 0; i < count; i++) nodes[i].classList.add("zc-skin-hl");
+  }
+
+  function bindSliderPreview(rowEl, key) {
+    var range = rowEl.querySelector('input[type="range"]');
+    if (!range) return;
+    // 拖动时持续高亮；松开后保留 1.5s 再清除，方便看清效果
+    var hideTimer = null;
+    range.addEventListener("input", function () { highlightKey(key); if (hideTimer) clearTimeout(hideTimer); });
+    range.addEventListener("mousedown", function () { highlightKey(key); if (hideTimer) clearTimeout(hideTimer); });
+    function scheduleHide() {
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(clearHighlight, 1500);
+    }
+    range.addEventListener("change", scheduleHide);
+    range.addEventListener("mouseup", scheduleHide);
+    range.addEventListener("mouseleave", function () {
+      // 鼠标移出但未拖动时不误清：仅当没有按下时清
+      if (document.activeElement !== range) clearHighlight();
+    });
+    rowEl.addEventListener("mouseenter", function () { highlightKey(key); });
+    rowEl.addEventListener("mouseleave", function () {
+      if (document.activeElement !== range) clearHighlight();
+    });
   }
 
   /* ---------- UI 构建 ---------- */
@@ -518,16 +609,43 @@
       panel.appendChild(pauseRow);
     }
 
+    // 处理中图标（旋转齿轮/圆圈）定制
+    var spinSub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "处理中图标（加载圈）");
+    panel.appendChild(spinSub);
+    panel.appendChild(textField("图标颜色（如 #ff5c5c，留空=默认）", c.spinnerColor, function (v) {
+      c.spinnerColor = v;
+      refreshAll(c);
+    }, "#38bdf8 / red / rgba(56,189,248,.9)", false));
+    panel.appendChild(textField("替换为 GIF（留空=用原生圆圈）", c.spinnerGif, function (v) {
+      c.spinnerGif = v;
+      refreshAll(c);
+    }, "点击右侧「浏览」选择 GIF 图片", true));
+    // 预览当前效果
+    var spinPreviewWrap = el("div", "display:flex;align-items:center;gap:10px;margin:2px 0 8px");
+    spinPreviewWrap.appendChild(el("span", "color:#bbb;font-size:11px", "预览："));
+    var pv1 = document.createElement("span");
+    pv1.className = "animate-spin";
+    pv1.style.cssText = "display:inline-block;width:16px;height:16px;border-radius:9999px;border:2px solid currentColor;border-top-color:transparent";
+    var pv2 = document.createElement("span");
+    pv2.className = "animate-spin";
+    pv2.style.cssText = "display:inline-block;width:14px;height:14px";
+    spinPreviewWrap.appendChild(pv1);
+    spinPreviewWrap.appendChild(pv2);
+    spinPreviewWrap.appendChild(el("span", "color:#888;font-size:11px", "(与侧栏实际效果同步)"));
+    panel.appendChild(spinPreviewWrap);
+
     // 分区透明度
     var o = c.opacities || {};
     var sub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "分区透明度");
     panel.appendChild(sub);
     for (var k in VAR_MAP) {
       (function (key) {
-        panel.appendChild(row(LABELS[key] || key, slider(o[key], function (v) {
+        var r = row(LABELS[key] || key, slider(o[key], function (v) {
           o[key] = v;
           refreshAll(c);
-        })));
+        }));
+        bindSliderPreview(r, key);
+        panel.appendChild(r);
       })(k);
     }
 
