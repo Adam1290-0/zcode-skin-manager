@@ -29,6 +29,7 @@
     spinnerGifScale: 100,
     spinnerGifRatio: 1,
     spinnerGifLock: true,
+    spinnerGifBlend: "",
     spinnerGifRatio: 1,
     opacities: {
       backgroundWinAlt: 0.35,
@@ -227,9 +228,17 @@
       var ratio = Number(c.spinnerGifRatio) || 1;
       if (ratio < 0.2) ratio = 0.2;
       if (ratio > 5) ratio = 5;
+      // blend: multiply 去白底 / screen 去黑底；同时解除 Tailwind preflight 的
+      // max-width/max-height 限制，否则元素宽度被父容器钳死、放大不生效
+      var blendCss = "";
+      if (c.spinnerGifBlend === "multiply") blendCss = "mix-blend-mode:multiply !important;";
+      else if (c.spinnerGifBlend === "screen") blendCss = "mix-blend-mode:screen !important;";
       spinCss.push(
         ".animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;" +
         "width:" + Math.round(scale * 16) + "px !important;height:" + Math.round(scale * 16 / ratio) + "px !important;" +
+        "max-width:none !important;max-height:none !important;min-width:0 !important;min-height:0 !important;" +
+        "flex:0 0 auto !important;display:inline-block !important;overflow:visible;" +
+        blendCss +
         "background:center / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
         "transform:none !important}" +
         ".animate-spin>*,.animate-spin svg{display:none !important}"
@@ -694,19 +703,36 @@
       }
       panel.appendChild(row("宽度", slider(c.spinnerGifScale, onWidth, 50, 300, 5, function (v) { return v + "%"; })));
       panel.appendChild(row("高度", slider(c.spinnerGifLock ? c.spinnerGifScale : (c.spinnerGifRatio ? Math.round(100 / c.spinnerGifRatio) : 100), onHeight, 25, 300, 5, function (v) { return v + "%"; })));
+      // 底色处理：白底 GIF 用 multiply、黑底用 screen 变透明
+      panel.appendChild(selectField("GIF 底色处理", c.spinnerGifBlend || "", {
+        "": "不处理（保留原样）",
+        "multiply": "去白底（白色变透明）",
+        "screen": "去黑底（黑色变透明）"
+      }, function (v) {
+        c.spinnerGifBlend = v;
+        refreshAll(c);
+        buildPanel(panel, c);
+      }));
     }
-    // 预览当前效果（用独立类名，不挂 .animate-spin：
-    // 否则全局 GIF 替换样式会把预览元素本身也替换，出现「两个 GIF」）
+    // 预览当前效果（用独立类名 + 按配置内联样式，与侧栏全局样式互不干扰）
     var spinPreviewWrap = el("div", "display:flex;align-items:center;gap:12px;margin:2px 0 8px");
     spinPreviewWrap.appendChild(el("span", "color:#bbb;font-size:11px;flex:0 0 auto", "预览："));
     var pv1 = document.createElement("span");
-    pv1.className = "zcode-skin-pv-ring";
-    pv1.style.cssText = "display:inline-block;width:16px;height:16px;border-radius:9999px;border:2px solid currentColor;border-top-color:transparent";
-    var pv2 = document.createElement("span");
-    pv2.className = "zcode-skin-pv-dot";
-    pv2.style.cssText = "display:inline-block;width:14px;height:14px;color:#ccc";
+    if (c.spinnerGif) {
+      var pvScale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
+      var pvRatio = Math.min(5, Math.max(0.2, Number(c.spinnerGifRatio) || 1));
+      var pvBlend = c.spinnerGifBlend === "multiply" ? ";mix-blend-mode:multiply" : (c.spinnerGifBlend === "screen" ? ";mix-blend-mode:screen" : "");
+      pv1.className = "zcode-skin-pv";
+      pv1.style.cssText =
+        "display:inline-block;border-radius:0;" +
+        "width:" + Math.round(pvScale * 16) + "px;height:" + Math.round(pvScale * 16 / pvRatio) + "px;max-width:none;max-height:none;" +
+        "background:center / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\")" + pvBlend;
+    } else {
+      pv1.className = "zcode-skin-pv-ring";
+      pv1.style.cssText = "display:inline-block;width:16px;height:16px;border-radius:9999px;border:2px solid currentColor;border-top-color:transparent";
+      if (c.spinnerColor) pv1.style.color = c.spinnerColor;
+    }
     spinPreviewWrap.appendChild(pv1);
-    spinPreviewWrap.appendChild(pv2);
     spinPreviewWrap.appendChild(el("span", "color:#888;font-size:11px", "(与侧栏实际效果同步)"));
     panel.appendChild(spinPreviewWrap);
 
@@ -714,8 +740,15 @@
     var o = c.opacities || {};
     var sub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "分区透明度");
     panel.appendChild(sub);
-    var hintEl = el("div", "display:none;margin:-2px 0 8px;color:#e8a13a;font-size:11px;line-height:1.5");
+    // 提示区固定高度预留，出现/消失不改变布局（否则会挤压滑杆行，
+    // 行位移触发 mouseleave→隐藏→mouseenter→显示 的循环，导致面板乱抖）
+    var hintEl = el("div", "height:34px;overflow:hidden;margin:-2px 0 4px;color:#e8a13a;font-size:11px;line-height:1.5;transition:opacity .15s;opacity:0");
     panel.appendChild(hintEl);
+    function showHint(text) {
+      hintEl.textContent = text;
+      hintEl.style.opacity = "1";
+    }
+    function hideHint() { hintEl.style.opacity = "0"; }
     for (var k in VAR_MAP) {
       (function (key) {
         var r = row(LABELS[key] || key, slider(o[key], function (v) {
@@ -730,13 +763,12 @@
           var found = false;
           try { found = !!document.querySelector(sels.join(",")); } catch (e) {}
           if (!found) {
-            hintEl.textContent = "⚠ 当前界面上没有找到「" + (LABELS[key] || key) + "」对应的可见区域——它所在的窗口/面板可能没打开（如菜单、悬浮提示、终端）。打开后悬停本滑杆即可看到红框。";
-            hintEl.style.display = "block";
+            showHint("⚠ 当前界面上没有找到「" + (LABELS[key] || key) + "」对应的可见区域——它所在的窗口/面板可能没打开（如菜单、悬浮提示、终端）。打开后悬停本滑杆即可看到红框。");
           } else {
-            hintEl.style.display = "none";
+            hideHint();
           }
         });
-        r.addEventListener("mouseleave", function () { hintEl.style.display = "none"; });
+        r.addEventListener("mouseleave", hideHint);
         panel.appendChild(r);
       })(k);
     }
