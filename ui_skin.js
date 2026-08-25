@@ -28,6 +28,7 @@
     spinnerGif: "",
     spinnerGifScale: 100,
     spinnerGifRatio: 1,
+    spinnerGifLock: true,
     spinnerGifRatio: 1,
     opacities: {
       backgroundWinAlt: 0.35,
@@ -655,17 +656,44 @@
         };
         probe.src = toFileUrl(c.spinnerGif);
       }
-      panel.appendChild(row("宽度", slider(c.spinnerGifScale, function (v) {
+      // 锁定比例开关：开启后拖宽度/高度任一滑杆，另一个按原始比例联动
+      var lockRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
+      var lockCb = document.createElement("input");
+      lockCb.type = "checkbox";
+      lockCb.checked = !!c.spinnerGifLock;
+      lockCb.style.cssText = "accent-color:#38bdf8";
+      lockCb.addEventListener("change", function () {
+        c.spinnerGifLock = lockCb.checked;
+        save(c);
+        buildPanel(panel, c);
+      });
+      lockRow.appendChild(lockCb);
+      lockRow.appendChild(el("span", "color:#ccc;font-size:12px", "锁定长宽比（拖动时按原图比例联动）"));
+      panel.appendChild(lockRow);
+      var origRatio = Math.min(5, Math.max(0.2, Number(c.spinnerGifRatio) || 1)); // 原图比例，联动基准
+      function onWidth(v) {
         c.spinnerGifScale = v;
+        if (c.spinnerGifLock) c.spinnerGifRatio = origRatio;
         save(c);
         applyCss(c);
-      }, 50, 300, 5, function (v) { return v + "%"; })));
-      panel.appendChild(row("高度", slider(c.spinnerGifRatio ? Math.round(100 / c.spinnerGifRatio) : 100, function (v) {
-        // 高度滑杆存的是相对宽度的百分比（50-300），换算成宽高比
-        c.spinnerGifRatio = 100 / Math.max(20, v);
+        if (!c.spinnerGifLock) return;
+        buildPanel(panel, c);
+      }
+      function onHeight(v) {
+        var hPct = Math.max(20, v);
+        if (c.spinnerGifLock) {
+          // 锁定时高度滑杆只改整体缩放，比例始终等于原图
+          c.spinnerGifScale = hPct;
+          c.spinnerGifRatio = origRatio;
+        } else {
+          c.spinnerGifRatio = 100 / hPct;
+        }
         save(c);
         applyCss(c);
-      }, 25, 300, 5, function (v) { return v + "%"; })));
+        buildPanel(panel, c);
+      }
+      panel.appendChild(row("宽度", slider(c.spinnerGifScale, onWidth, 50, 300, 5, function (v) { return v + "%"; })));
+      panel.appendChild(row("高度", slider(c.spinnerGifLock ? c.spinnerGifScale : (c.spinnerGifRatio ? Math.round(100 / c.spinnerGifRatio) : 100), onHeight, 25, 300, 5, function (v) { return v + "%"; })));
     }
     // 预览当前效果（用独立类名，不挂 .animate-spin：
     // 否则全局 GIF 替换样式会把预览元素本身也替换，出现「两个 GIF」）
