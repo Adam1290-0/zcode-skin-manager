@@ -217,6 +217,8 @@
 
     // 会话/任务「处理中」旋转图标：ZCode 用 .animate-spin + currentColor（lucide 圆弧 SVG）。
     // 换色：直接改 color；换 GIF：隐藏 svg 旋转圈，用 background-image 盖一个同尺寸 GIF。
+    // ⚠️ 范围必须限定在左侧边栏（aside.bg-sidebar）内部——全局替换会误伤设置页里
+    // 所有借用 .animate-spin 做加载态的控件（如子智能体「思考强度」的加载中开关）。
     // GIF 尺寸策略：元素盒按「宽 spinnerGifScale% × 高 宽/ratio」显式撑开，
     // 图片用 100%/100% 填满盒子 → 非正方形（如长条）原图也能完整显示不裁剪。
     var spinCss = [];
@@ -244,14 +246,17 @@
         blendCss = c._gifAutoBlend;
       }
       spinCss.push(
-        ".animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;" +
+        // 作用域限定在工作区侧栏面板内（#sidebar[data-workspace-sidebar-panel]，ZCode 主界面左侧栏根容器）。
+        // 不能用全局 .animate-spin——设置页里大量控件（如子智能体「思考强度」的加载中开关）
+        // 也用同一类，会被误替换（v1.4.6 实测 bug）。侧栏内的任务条目齿轮、加载态都在 #sidebar 内。
+        "#sidebar .animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;" +
         "width:" + Math.round(scale * 16) + "px !important;height:" + Math.round(scale * 16 / ratio) + "px !important;" +
         "max-width:none !important;max-height:none !important;min-width:0 !important;min-height:0 !important;" +
         "flex:0 0 auto !important;display:inline-block !important;overflow:visible;" +
         blendCss +
         "background:" + offX + "% " + offY + "% / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
         "transform:none !important}" +
-        ".animate-spin>*,.animate-spin svg{display:none !important}"
+        "#sidebar .animate-spin>*,#sidebar .animate-spin svg{display:none !important}"
       );
     }
     if (spinCss.length) css += spinCss.join("");
