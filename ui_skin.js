@@ -216,11 +216,13 @@
     var css = buildCss(c);
 
     // 会话/任务「处理中」旋转图标：ZCode 用 .animate-spin + currentColor（lucide 圆弧 SVG）。
-    // 换 GIF：在每个侧栏 spinner 元素内注入一个 <img> 子元素（MutationObserver 动态维护）。
-    // 为什么不用 background-image + mix-blend-mode：
-    //   ① background-size:100% 100% 时 background-position 百分比恒为 0，offset 滑杆无效；
-    //   ② mix-blend-mode 只作用于元素矩形整体，无法去掉 background-image 里的白色像素。
-    // <img> 的像素内容可以直接被 mix-blend-mode 键控掉底色，offset 用 transform 实现。
+    // 换 GIF：向 spinner 元素注入 <img src=GIF>（MutationObserver 动态维护），原生 svg 隐藏。
+    // 教训记录：
+    //   v1.4.7 background-image 方案 → offset 百分比恒 0、mix-blend-mode 键不掉 background 像素
+    //   v1.4.8 content:url() 方案 → img 无 src 时 content 替换渲染不可靠（GIF 不显示），
+    //     且 animation:none 停了原生圈但 GIF 又没显示 → 出现「禁止不动的空圈」
+    //   v1.4.6 全局 .animate-spin → 误伤设置页思考强度开关
+    // v1.4.9 最终方案：img.src 直赋值 + 隐藏 svg 用类切换（可逆）+ 范围排除设置对话框
     var spinCss = [];
     if (c.spinnerGif) {
       var scale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
@@ -246,12 +248,20 @@
       } else if (c.spinnerGifBlend === "auto" && c._gifAutoBlend) {
         blendCss = c._gifAutoBlend;
       }
+      // 范围：#sidebar（侧栏任务条目齿轮）+ 聊天主区运行态图标（.history-message / [data-history-open] 内）。
+      // 设置对话框（[role=dialog]）由 JS 侧 isProtected 排除，CSS 不再拼复杂 :not 链（易写错且无必要）。
       spinCss.push(
-        // 作用域限定在工作区侧栏面板内（#sidebar），不误伤设置页的加载指示（v1.4.6 教训）。
-        // 原生 svg 圆圈隐藏，注入的 img 撑满元素盒。
-        "#sidebar .animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;position:relative !important;overflow:visible !important}" +
-        "#sidebar .animate-spin>svg,#sidebar .animate-spin>span{display:none !important}" +
-        "#sidebar .animate-spin img.zcode-skin-gif{" +
+        "#sidebar .animate-spin," +
+        ".history-message .animate-spin," +
+        "[data-history-open] .animate-spin" +
+        "{position:relative !important;overflow:visible !important}" +
+        "#sidebar .animate-spin>svg," +
+        ".history-message .animate-spin>svg," +
+        "#sidebar .animate-spin>span>svg," +
+        ".history-message .animate-spin>span>svg" +
+        "{opacity:0 !important}" +
+        "#sidebar .animate-spin img.zcode-skin-gif," +
+        ".history-message .animate-spin img.zcode-skin-gif{" +
         "width:" + Math.round(scale * 16) + "px !important;height:" + Math.round(scale * 16 / ratio) + "px !important;" +
         "max-width:none !important;max-height:none !important;min-width:0 !important;min-height:0 !important;" +
         "display:block !important;border-radius:0 !important;" +
@@ -259,38 +269,64 @@
         "transform:translate(calc(-50% + " + tx + "px), calc(-50% + " + ty + "px)) !important;" +
         "pointer-events:none;" +
         blendCss +
-        "content:url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important}"
+        "}"
       );
     } else {
-      // 关闭 GIF 后清理动态注入的 img
-      document.querySelectorAll("#sidebar .animate-spin img.zcode-skin-gif").forEach(function (n) { n.remove(); });
+      // 关闭 GIF：清理注入 img 并恢复原生圈
+      document.querySelectorAll("#sidebar .animate-spin img.zcode-skin-gif, .history-message .animate-spin img.zcode-skin-gif").forEach(function (n) { n.remove(); });
+      document.querySelectorAll("#sidebar .animate-spin[data-zcode-skin-host], .history-message .animate-spin[data-zcode-skin-host]").forEach(function (n) {
+        n.removeAttribute("data-zcode-skin-host");
+        var svg = n.querySelector(":scope > svg");
+        if (svg) svg.style.opacity = "";
+      });
     }
     if (spinCss.length) css += spinCss.join("");
     st.textContent = css;
 
-    // 动态维护：往 #sidebar 内每个 .animate-spin 注入 <img class=zcode-skin-gif>，
-    // React 重渲染删掉后自动补回。用 content:url() 强制 img 显示指定 GIF（src 不可控）。
+    // 动态维护：往侧栏 + 聊天历史区的 .animate-spin 注入 <img src=GIF> 并隐藏原生 svg；
+    // React 重渲染删掉后由 MutationObserver 自动补回。设置对话框（[role=dialog]）内不动。
+    var GIF_URL = c.enabled && c.spinnerGif ? toFileUrl(c.spinnerGif) : "";
+    function isProtected(node) {
+      return !!node.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn');
+    }
     function syncSpinnerImgs() {
-      var root = document.getElementById("sidebar");
-      if (!root) return;
-      var spins = root.querySelectorAll(".animate-spin");
-      for (var i = 0; i < spins.length; i++) {
-        var host = spins[i];
-        var img = host.querySelector(":scope > img.zcode-skin-gif");
-        if (!c.enabled || !c.spinnerGif) {
-          if (img) img.remove();
-          continue;
-        }
-        if (!img) {
-          img = document.createElement("img");
-          img.className = "zcode-skin-gif";
-          img.alt = "";
-          host.appendChild(img);
+      var roots = [];
+      var sb = document.getElementById("sidebar");
+      if (sb) roots.push(sb);
+      document.querySelectorAll(".history-message, [data-history-open]").forEach(function (n) { roots.push(n); });
+      for (var r = 0; r < roots.length; r++) {
+        var spins = roots[r].querySelectorAll(".animate-spin");
+        for (var i = 0; i < spins.length; i++) {
+          var host = spins[i];
+          if (isProtected(host)) continue;
+          var img = host.querySelector(":scope > img.zcode-skin-gif");
+          if (!GIF_URL) {
+            if (img) img.remove();
+            if (host.hasAttribute("data-zcode-skin-host")) {
+              host.removeAttribute("data-zcode-skin-host");
+              var svg = host.querySelector(":scope > svg");
+              if (svg) svg.style.opacity = "";
+            }
+            continue;
+          }
+          if (!img) {
+            img = document.createElement("img");
+            img.className = "zcode-skin-gif";
+            img.alt = "";
+            host.appendChild(img);
+          }
+          // 直赋 src：content:url() 对无 src 的 img 渲染不可靠（v1.4.8 教训）
+          if (img.getAttribute("src") !== GIF_URL) img.setAttribute("src", GIF_URL);
+          if (!host.hasAttribute("data-zcode-skin-host")) {
+            host.setAttribute("data-zcode-skin-host", "1");
+            var svg2 = host.querySelector(":scope > svg");
+            if (svg2) svg2.style.opacity = "0";
+          }
         }
       }
     }
     syncSpinnerImgs();
-    if (c.enabled && c.spinnerGif) {
+    if (GIF_URL) {
       if (!window.__zcodeSkinSpinObserver) {
         window.__zcodeSkinSpinObserver = new MutationObserver(function () { syncSpinnerImgs(); });
         window.__zcodeSkinSpinObserver.observe(document.body, { childList: true, subtree: true });
