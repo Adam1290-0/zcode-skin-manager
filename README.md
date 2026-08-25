@@ -1,20 +1,33 @@
 # ZCode Skin Manager / ZCode 皮肤管理器
 
-> **当前版本 / Current version：`v1.4.0`** — 适配 ZCode 3.9.1
-
 [English](#english) · [中文](#中文)
 
-给 [ZCode](https://zcode.z.ai) 桌面端加上「皮肤设置」功能：壁纸（图片/视频）、分区透明度、毛玻璃、动态特效，右上角一个可拖动的 🎨 按钮一键调节。
+给 [ZCode](https://zcode.z.ai) 桌面端加上「皮肤设置」功能：壁纸（图片/视频）、14 区透明度（带红框实时预览）、毛玻璃、动态特效、加载图标 GIF 替换，右上角一个可拖动的 🎨 按钮一键调节。
 
-Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (image/video), per-region opacity, frosted glass, dynamic effects — all adjustable from a draggable 🎨 button in the top-right corner.
+Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (image/video), 14-zone opacity with live red-outline preview, frosted glass, dynamic effects, and a custom GIF loading spinner — all adjustable from a draggable 🎨 button in the top-right corner.
+
+---
+
+## 📌 版本对应表 / Version Matrix
+
+**打补丁前请先核对你的 ZCode 版本！** 查看方法见 [COMPATIBILITY.md](COMPATIBILITY.md#如何确认你的-zcode-版本)。
+
+| 补丁版本 | 适配 ZCode 版本 | 状态 | 主要变化 |
+|---|---|---|---|
+| **v1.4.6（最新）** | **3.7.6 / 3.8.1 / 3.9.1** | ✅ 当前维护版本 | GIF 加载图支持位置偏移微调 |
+| v1.4.5 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | UI 精简：视频速度/暂停合一、智能去底、.gif 文件过滤 |
+| v1.4.4 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | 修复面板抖动/GIF 预览/缩放钳制，新增 GIF 底色透明处理 |
+| v1.4.0 – v1.4.3 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | 红框滑块预览、GIF 替换加载圈、比例锁定 |
+| v1.3.0 | 3.7.6 / 3.8.1 / **3.9.1** | ✅ | 适配 ZCode 3.9.1 |
+| v1.2.0 | 3.7.6 / **3.8.1** | ⚠️ 被 v1.3+ 取代 | 适配 ZCode 3.8.1（`--color-surface` 等） |
+| v1.1.0 | **3.7.6** | ❌ 仅限旧版 ZCode | 按钮锚点修复、unpacked 备份修复 |
+| v1.0.0 | **3.7.6** | ❌ 仅限旧版 ZCode | 首个版本 |
 
 > ⚠️ 本项目是**社区第三方补丁**，通过修改 ZCode 的 `app.asar` 注入前端脚本实现，**与 ZCode 官方无关**。使用前请阅读 [DISCLAIMER.md](DISCLAIMER.md) 和 [COMPATIBILITY.md](COMPATIBILITY.md)。
 >
 > ⚠️ This is a **community third-party patch**. It works by modifying ZCode's `app.asar` and injecting a frontend script, and is **not affiliated with ZCode**. Read [DISCLAIMER.md](DISCLAIMER.md) and [COMPATIBILITY.md](COMPATIBILITY.md) before use.
-
-> **📌 版本要求 / Version requirement**：本补丁**已在 ZCode 3.7.6 / 3.8.1 / 3.9.1 上开发和验证**，**其他版本不保证可用**。使用前请确认你的 ZCode 版本，详见 [COMPATIBILITY.md](COMPATIBILITY.md)。
 >
-> **📌 This patch is developed and tested against ZCode 3.7.6 / 3.8.1 / 3.9.1. Other versions are NOT guaranteed to work.** Verify your ZCode version before use — see [COMPATIBILITY.md](COMPATIBILITY.md).
+> **ZCode 是闭源应用且更新频繁**——每次官方更新都可能让补丁失效。若你的 ZCode 版本不在上表中，请勿直接打补丁；可以提 Issue 告知你的版本号，我会评估适配。
 
 ---
 
@@ -23,14 +36,19 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 
 ### Features
 
-- 🎨 Draggable skin button in the top-right corner (position is remembered)
+- 🎨 Draggable skin button in the top-right corner (position survives window resize/fullscreen via ratio anchoring)
 - 🖼️ Wallpaper: static image / GIF / animated WebP / **video wallpaper** (webm)
-- 🪟 Per-region opacity: 14 independent sliders (main area, background, surface, sidebar, header, panel, card, input, terminal, border, etc.)
-- 🔴 **Live region preview**: dragging a slider draws a pulsing red outline around every UI region it affects — see exactly what you're changing
-- ⏳ **Loading spinner customization**: recolor the spinning "working" indicator, or replace it with your own GIF
+- 🪟 Per-region opacity: 14 independent sliders (main area, background ×2, surface ×2, sidebar, header, panel, card, input, tooltip, menu, terminal, border)
+- 🔴 **Live region preview**: hovering/dragging a slider draws a pulsing red outline around every UI region it affects — see exactly what you're changing (panel shows a hint if that region isn't currently visible)
+- ⏳ **Loading spinner customization**: replace the spinning "working" indicator with your own GIF —
+  - auto-detected aspect ratio (non-square/strip images display fully)
+  - width & height sliders + aspect-ratio lock
+  - position offset sliders (X/Y) for off-center source images
+  - background removal: white-key / black-key / **smart auto-detect** (samples edge pixels; works on gray/purple/tinted backgrounds too)
+  - file picker restricted to `.gif`
 - 🌫️ Frosted glass (backdrop-filter) + wallpaper blur
 - ✨ Dynamic effects: starfield / snow / aurora gradient
-- 🎬 Video wallpaper controls: playback speed, pause
+- 🎬 Video wallpaper: one slider for speed & pause (slide to 0 = pause)
 - 🎭 4 preset themes + export/import config as JSON
 - 💾 Settings apply instantly and persist in localStorage
 
@@ -54,10 +72,11 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 | What you want | How |
 |---|---|
 | Change wallpaper | Click 「浏览…」 next to the wallpaper field and pick an image/video |
-| Change region opacity | Drag the corresponding slider (0 = fully transparent, 1 = solid) |
+| Change region opacity | Drag the corresponding slider (0 = fully transparent, 1 = solid); hover to see the red outline preview |
 | Enable frosted glass | Drag the 「毛玻璃」 slider (0 = off) |
 | Add dynamic effects | Pick starfield/snow/aurora from the 「动态特效」 dropdown |
-| Video wallpaper | Select a `.webm` file — speed/pause controls appear automatically |
+| Video wallpaper | Select a `.webm` file — speed slider appears; slide fully left (⏸) to pause |
+| Replace loading spinner | 「替换为 GIF」→ pick a `.gif`; adjust size/ratio/offset/background-removal below it |
 | Share config | Click 「导出」 to copy JSON; others paste it via 「导入」 |
 
 ### Files
@@ -72,7 +91,7 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 ### FAQ
 
 **Q: Skin disappears after ZCode auto-updates?**
-A: Updates overwrite `app.asar`. Re-run `patch.bat` (your settings live in localStorage and are not lost).
+A: Updates overwrite `app.asar`. Re-run `patch.bat`. If ZCode jumped several versions, check the [Version Matrix](#-版本对应表--version-matrix) first — the new version may need patch changes.
 
 **Q: mp4 video wallpaper won't play?**
 A: Electron ships without an H.264 decoder by default. Convert to `.webm` (VP8/VP9):
@@ -81,10 +100,10 @@ ffmpeg -i input.mp4 -c:v libvpx-vp9 -crf 30 -b:v 0 -an output.webm
 ```
 
 **Q: The button overlaps other buttons?**
-A: Drag it with the mouse — the position is remembered.
+A: Drag it with the mouse — position is stored as a window ratio, so it stays put across resizes/fullscreen.
 
-**Q: Want to reset to defaults?**
-A: Use the 「恢复默认」 button at the bottom of the panel.
+**Q: No red outline when hovering a slider?**
+A: That region's panel probably isn't open (e.g. menus/tooltips only exist while shown). The panel shows a yellow hint when this happens. Terminal needs an open terminal tab; border isn't highlightable (it's a stroke, not a fill).
 
 ### How it works
 
@@ -92,7 +111,8 @@ ZCode is an Electron + React + Tailwind v4 app. All colors are driven by `--colo
 
 Key points:
 - The wallpaper uses `<img>`/`<video>` elements (ZCode's `html,body,#root{background:0 0!important}` blocks `background`-based wallpapers)
-- `--color-background-win-alt` must be overridden (the main UI root uses it)
+- Must override `--color-background-win-alt` / `--color-background` / `--color-surface` (used by the main UI root and surface layers since 3.8.x)
+- The loading spinner is a lucide SVG with `.animate-spin` + `currentColor`, so it can be restyled or replaced wholesale
 
 ---
 
@@ -101,14 +121,19 @@ Key points:
 
 ### 功能
 
-- 🎨 右上角可拖动的皮肤按钮（位置自动记忆）
+- 🎨 右上角可拖动的皮肤按钮（按窗口比例锚定，缩放/全屏不丢失）
 - 🖼️ 壁纸：静态图 / GIF / 动态 WebP / **视频壁纸**（webm）
-- 🪟 分区透明度：14 个独立滑杆（主区、背景、表面、侧栏、顶栏、面板、卡片、输入框、终端、边框等）
-- 🔴 **滑块高亮预览**：拖动/悬停某个透明度滑杆时，页面上所有受该设置影响的区域会显示脉动红框，直观看到改的是哪里
-- ⏳ **处理中图标定制**：加载旋转圈可换颜色，也可替换成自己的 GIF 动图
+- 🪟 分区透明度：14 个独立滑杆（主区、背景×2、表面×2、侧栏、顶栏、面板、卡片、输入框、提示、菜单、终端、边框）
+- 🔴 **滑块高亮预览**：悬停/拖动滑杆时，受影响的 UI 区域显示脉动红框，直观看到改的是哪里（区域未打开时面板会给出黄色提示）
+- ⏳ **处理中图标定制**：用 GIF 替换侧栏/任务的旋转加载圈——
+  - 自动识别宽高比，长条/非正方形 GIF 完整显示不裁剪
+  - 宽度/高度双滑杆 + 锁定长宽比开关
+  - 位置偏移双滑杆（横/纵），修正素材不居中导致的偏移
+  - 底色处理：去白底 / 去黑底 / **智能去底**（自动采样边缘像素判断底色，紫灰等彩色底也适用）
+  - 文件选择限定 .gif 格式
 - 🌫️ 毛玻璃（backdrop-filter）+ 壁纸模糊
 - ✨ 动态特效：星空 / 飘雪 / 极光渐变
-- 🎬 视频壁纸控制：播放速度、暂停
+- 🎬 视频壁纸：速度与暂停合一滑杆（拉到最左 = 暂停）
 - 🎭 4 套预设主题 + 配置 JSON 导入/导出
 - 💾 设置实时生效并持久化到 localStorage
 
@@ -132,10 +157,11 @@ Key points:
 | 你想做什么 | 怎么做 |
 |---|---|
 | 换壁纸 | 壁纸输入框右侧点「浏览…」选图片/视频 |
-| 调分区透明度 | 拖对应滑杆（0=全透，1=实底） |
+| 调分区透明度 | 拖对应滑杆（0=全透，1=实底）；悬停可见红框预览 |
 | 开毛玻璃 | 拖「毛玻璃」滑杆（0=关） |
 | 加动态特效 | 「动态特效」下拉选星空/飘雪/极光 |
-| 视频壁纸 | 选 `.webm` 文件，自动出现速度/暂停控制 |
+| 视频壁纸 | 选 `.webm` 文件，出现速度滑杆；拉到最左（⏸）暂停 |
+| 替换加载图标 | 「替换为 GIF」选一个 .gif；下方调尺寸/比例/位置/去底 |
 | 分享配置 | 点「导出」复制 JSON，别人「导入」粘贴 |
 
 ### 文件说明
@@ -150,7 +176,7 @@ Key points:
 ### 常见问题
 
 **Q：ZCode 自动更新后皮肤没了？**
-A：更新会覆盖 `app.asar`，重新双击 `patch.bat` 即可（皮肤配置在 localStorage，不会丢）。
+A：更新会覆盖 `app.asar`，重新双击 `patch.bat` 即可（皮肤配置在 localStorage，不会丢）。若 ZCode 跨了多个版本，先对照上方[版本对应表](#-版本对应表--version-matrix)确认是否需要补丁更新。
 
 **Q：mp4 视频壁纸放不出来？**
 A：Electron 默认不带 H.264 解码器，请转成 `.webm`（VP8/VP9）：
@@ -159,10 +185,10 @@ ffmpeg -i input.mp4 -c:v libvpx-vp9 -crf 30 -b:v 0 -an output.webm
 ```
 
 **Q：按钮挡住了别的按钮？**
-A：鼠标按住 🎨 按钮拖动即可，位置会记住。
+A：鼠标按住 🎨 按钮拖动即可，位置按窗口比例记忆，缩放/全屏都不会跑丢。
 
-**Q：想恢复默认设置？**
-A：面板底部「恢复默认」按钮。
+**Q：悬停滑杆没有红框？**
+A：该区域所在窗口可能没打开（如菜单、悬浮提示只在弹出时存在），此时面板会出现黄色提示。终端需要开着终端页签才有红框；「边框」是描边不是色块，无法框选预览。
 
 ### 原理
 
@@ -170,29 +196,43 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 
 关键点：
 - 壁纸用 `<img>`/`<video>` 元素挂载（官方 `html,body,#root{background:0 0!important}` 封死了 background 挂图）
-- 必须覆盖 `--color-background-win-alt` / `--color-background` / `--color-surface`（主 UI 根容器和表面层用它们）
+- 必须覆盖 `--color-background-win-alt` / `--color-background` / `--color-surface`（3.8.x 起表面层大量使用 surface 变量）
+- 加载圈是 lucide SVG + `.animate-spin` + `currentColor`，因此可整体替换为 GIF
 
 ### 更新日志 / Changelog
 
-### v1.4.0
+### v1.4.6
 
-- 🔴 **滑块高亮预览**：拖动/悬停透明度滑杆时，受影响的 UI 区域显示脉动红框（拖「侧栏」时侧栏被框住，一目了然；终端和边框两项因渲染方式特殊暂不支持）
-- ⏳ **处理中图标定制**：侧栏/任务里旋转的加载圈可自定义颜色，或整体替换成 GIF 动图（面板内含实时预览）
+- 📍 新增 GIF 位置偏移微调：「位置·横」「位置·纵」两个滑杆（0–100%，默认居中），素材不居中时放大后可校正取景位置
+
+### v1.4.5
+
+- 🧹 UI 精简：视频速度与暂停合并为一个滑杆（拉到最左=⏸）；移除加载圈颜色输入（仅保留 GIF 替换）；底色处理下拉同行显示并新增**智能去底**；GIF 文件选择限定 .gif；收紧分区透明度标题空行
+
+### v1.4.4
+
+- 🐛 修复悬停提示导致面板乱抖（提示区改为固定占位）
+- 🐛 修复面板内 GIF 预览不显示
+- 🐛 修复 GIF 放大被 Tailwind max-width 钳制不生效
+- ✨ 新增 GIF 底色透明处理（去白底/去黑底）
+
+### v1.4.0 – v1.4.3
+
+- 🔴 滑块高亮红框预览 + 区域未打开黄色提示
+- ⏳ 加载圈替换为 GIF：自动识别宽高比、完整显示非正方形素材、宽度/高度双滑杆、锁定长宽比开关
 
 ### v1.3.0
 
-- 🆙 适配 ZCode 3.9.1（核心变量 `--color-background-win-alt` / `--color-background` / `--color-surface` / `--color-surface-hover` 全部仍在，兼容 3.7.6 / 3.8.1）
+- 🆙 适配 ZCode 3.9.1（核心变量全部仍在，向下兼容 3.7.6 / 3.8.1）
 
 ### v1.2.0
 
-- 🆙 适配 ZCode 3.8.1：新增 `--color-background-alt`、`--color-surface`、`--color-surface-hover` 三个分区透明度滑杆（3.8.1 大量使用 `bg-surface` 类，旧补丁会让这些区域保持不透明）
-- 🎯 继续支持 3.7.6 的核心变量（`--color-background-win-alt` 等）
+- 🆙 适配 ZCode 3.8.1：新增 `--color-background-alt`、`--color-surface`、`--color-surface-hover` 三个分区滑杆（3.8.1 大量使用 `bg-surface` 类）
 
 ### v1.1.0
 
-- 🎯 修复皮肤按钮在窗口缩放/全屏切换后「丢失」的问题（改用相对位置锚点，不再存绝对像素）
-- 🧩 修复 `patch.bat`/`unpatch.bat` 未备份/未保留 `app.asar.unpacked` 原生模块（node-pty/ssh2）导致终端/SSH 损坏的问题
-- 📌 README/COMPATIBILITY 明确标注仅适配 ZCode 3.7.6（Electron 41.0.3）
+- 🎯 修复皮肤按钮在窗口缩放/全屏后「丢失」（改用相对比例锚点）
+- 🧩 修复 patch/unpatch 未备份 `app.asar.unpacked` 原生模块导致终端/SSH 损坏
 
 ### v1.0.0
 
