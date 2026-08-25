@@ -27,6 +27,8 @@
     spinnerColor: "",
     spinnerGif: "",
     spinnerGifScale: 100,
+    spinnerGifRatio: 1,
+    spinnerGifRatio: 1,
     opacities: {
       backgroundWinAlt: 0.35,
       background: 0.45,
@@ -213,17 +215,22 @@
 
     // 会话/任务「处理中」旋转图标：ZCode 用 .animate-spin + currentColor（lucide 圆弧 SVG）。
     // 换色：直接改 color；换 GIF：隐藏 svg 旋转圈，用 background-image 盖一个同尺寸 GIF。
-    // spinnerGifScale 控制缩放百分比（50-300），通过放大 background-size 相对原元素尺寸实现。
+    // GIF 尺寸策略：元素盒按「宽 spinnerGifScale% × 高 宽/ratio」显式撑开，
+    // 图片用 100%/100% 填满盒子 → 非正方形（如长条）原图也能完整显示不裁剪。
     var spinCss = [];
     if (c.spinnerColor) {
       spinCss.push(".animate-spin{color:" + c.spinnerColor + " !important}");
     }
     if (c.spinnerGif) {
       var scale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
+      var ratio = Number(c.spinnerGifRatio) || 1;
+      if (ratio < 0.2) ratio = 0.2;
+      if (ratio > 5) ratio = 5;
       spinCss.push(
         ".animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;" +
-        "background:center / contain no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
-        "transform:scale(" + scale + ") !important;transform-origin:center}" +
+        "width:" + Math.round(scale * 16) + "px !important;height:" + Math.round(scale * 16 / ratio) + "px !important;" +
+        "background:center / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
+        "transform:none !important}" +
         ".animate-spin>*,.animate-spin svg{display:none !important}"
       );
     }
@@ -628,16 +635,37 @@
       refreshAll(c);
     }, "#38bdf8 / red / rgba(56,189,248,.9)", false));
     panel.appendChild(textField("替换为 GIF（留空=用原生圆圈）", c.spinnerGif, function (v) {
+      var changed = v !== c.spinnerGif;
       c.spinnerGif = v;
       refreshAll(c);
-      buildPanel(panel, c);
+      if (changed) buildPanel(panel, c);
     }, "点击右侧「浏览」选择 GIF 图片", true));
     if (c.spinnerGif) {
-      panel.appendChild(row("GIF 缩放", slider(c.spinnerGifScale, function (v) {
+      // 读取图片真实宽高比，让非正方形（长条等）GIF 能按原比例完整显示
+      if (!c.spinnerGifRatio || c._gifRatioSrc !== c.spinnerGif) {
+        var probe = new Image();
+        probe.onload = function () {
+          if (probe.naturalHeight > 0) {
+            c.spinnerGifRatio = Math.min(5, Math.max(0.2, probe.naturalWidth / probe.naturalHeight));
+            c._gifRatioSrc = c.spinnerGif;
+            save(c);
+            applyCss(c);
+            buildPanel(panel, c);
+          }
+        };
+        probe.src = toFileUrl(c.spinnerGif);
+      }
+      panel.appendChild(row("宽度", slider(c.spinnerGifScale, function (v) {
         c.spinnerGifScale = v;
         save(c);
         applyCss(c);
-      }, 50, 300, 10, function (v) { return v + "%"; })));
+      }, 50, 300, 5, function (v) { return v + "%"; })));
+      panel.appendChild(row("高度", slider(c.spinnerGifRatio ? Math.round(100 / c.spinnerGifRatio) : 100, function (v) {
+        // 高度滑杆存的是相对宽度的百分比（50-300），换算成宽高比
+        c.spinnerGifRatio = 100 / Math.max(20, v);
+        save(c);
+        applyCss(c);
+      }, 25, 300, 5, function (v) { return v + "%"; })));
     }
     // 预览当前效果（用独立类名，不挂 .animate-spin：
     // 否则全局 GIF 替换样式会把预览元素本身也替换，出现「两个 GIF」）
