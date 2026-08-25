@@ -26,6 +26,7 @@
     effect: "none",
     spinnerColor: "",
     spinnerGif: "",
+    spinnerGifScale: 100,
     opacities: {
       backgroundWinAlt: 0.35,
       background: 0.45,
@@ -212,14 +213,17 @@
 
     // 会话/任务「处理中」旋转图标：ZCode 用 .animate-spin + currentColor（lucide 圆弧 SVG）。
     // 换色：直接改 color；换 GIF：隐藏 svg 旋转圈，用 background-image 盖一个同尺寸 GIF。
+    // spinnerGifScale 控制缩放百分比（50-300），通过放大 background-size 相对原元素尺寸实现。
     var spinCss = [];
     if (c.spinnerColor) {
       spinCss.push(".animate-spin{color:" + c.spinnerColor + " !important}");
     }
     if (c.spinnerGif) {
+      var scale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
       spinCss.push(
         ".animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;" +
-        "background:center/contain no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important}" +
+        "background:center / contain no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
+        "transform:scale(" + scale + ") !important;transform-origin:center}" +
         ".animate-spin>*,.animate-spin svg{display:none !important}"
       );
     }
@@ -343,22 +347,23 @@
   /* ---------- 滑块高亮预览：拖动/悬停滑块时用红框标出受影响的区域 ---------- */
 
   var HL_STYLE_ID = "zcode-skin-hl-style";
-  // 每个 CSS 变量对应页面上带该背景色的 Tailwind 类，用于反查 DOM 元素
+  // 每个 CSS 变量对应页面上带该背景色的 Tailwind 类，用于反查 DOM 元素。
+  // 数组形式：多个选择器取并集（例如终端背景同时存在于 xterm 包装层和 canvas 上）。
   var HIGHLIGHT_CLASS = {
-    backgroundWinAlt: ".bg-background-win-alt",
-    background: ".bg-background",
-    backgroundAlt: ".bg-background-alt",
-    surface: ".bg-surface",
-    surfaceHover: ".bg-surface-hover",
-    sidebar: ".bg-sidebar",
-    header: ".bg-header",
-    panel: ".bg-panel",
-    card: ".bg-card",
-    input: ".bg-input",
-    tooltip: ".bg-tooltip",
-    menu: ".bg-menu",
-    terminal: null, // 终端背景在 xterm 内部 canvas 上，无法用类名定位
-    border: null    // 边框是描边不是色块，高亮所有边框元素太吵
+    backgroundWinAlt: [".bg-background-win-alt"],
+    background: [".bg-background"],
+    backgroundAlt: [".bg-background-alt"],
+    surface: [".bg-surface"],
+    surfaceHover: [".bg-surface-hover", "[class*='hover:bg-surface-hover']"],
+    sidebar: [".bg-sidebar"],
+    header: [".bg-header"],
+    panel: [".bg-panel"],
+    card: [".bg-card"],
+    input: [".bg-input", "input[type='text']", "textarea"],
+    tooltip: ["[role='tooltip']"],
+    menu: ["[role='menu']", "[role='listbox']"],
+    terminal: [".terminal-xterm-shell", ".xterm-screen"],
+    border: null // 边框是描边不是色块，高亮所有带边框元素太吵
   };
 
   function ensureHlStyle() {
@@ -382,11 +387,13 @@
   function highlightKey(key) {
     ensureHlStyle();
     clearHighlight();
-    var sel = HIGHLIGHT_CLASS[key];
-    if (!sel) return;
+    var sels = HIGHLIGHT_CLASS[key];
+    if (!sels) return;
+    var sel = sels.join(",");
     var nodes = document.querySelectorAll(sel);
     var count = Math.min(nodes.length, 400); // 上限保护，避免极端情况下卡顿
     for (var i = 0; i < count; i++) nodes[i].classList.add("zc-skin-hl");
+    if (!count) console.warn("[zcode-skin] 高亮预览：页面上当前没有匹配「" + (LABELS[key] || key) + "」的可见元素（对应面板可能未打开）");
   }
 
   function bindSliderPreview(rowEl, key) {
@@ -394,19 +401,23 @@
     if (!range) return;
     // 拖动时持续高亮；松开后保留 1.5s 再清除，方便看清效果
     var hideTimer = null;
-    range.addEventListener("input", function () { highlightKey(key); if (hideTimer) clearTimeout(hideTimer); });
-    range.addEventListener("mousedown", function () { highlightKey(key); if (hideTimer) clearTimeout(hideTimer); });
+    var matched = null;
+    function show() {
+      highlightKey(key);
+      // 面板上直接显示该区域当前是否有元素可见，避免用户对着不存在的窗口调
+      var sels = HIGHLIGHT_CLASS[key];
+      try { matched = sels && document.querySelector(sels.join(",")) ? true : false; } catch (e) { matched = false; }
+      if (hideTimer) clearTimeout(hideTimer);
+    }
+    range.addEventListener("input", show);
+    range.addEventListener("mousedown", show);
     function scheduleHide() {
       if (hideTimer) clearTimeout(hideTimer);
       hideTimer = setTimeout(clearHighlight, 1500);
     }
     range.addEventListener("change", scheduleHide);
     range.addEventListener("mouseup", scheduleHide);
-    range.addEventListener("mouseleave", function () {
-      // 鼠标移出但未拖动时不误清：仅当没有按下时清
-      if (document.activeElement !== range) clearHighlight();
-    });
-    rowEl.addEventListener("mouseenter", function () { highlightKey(key); });
+    rowEl.addEventListener("mouseenter", show);
     rowEl.addEventListener("mouseleave", function () {
       if (document.activeElement !== range) clearHighlight();
     });
@@ -619,16 +630,25 @@
     panel.appendChild(textField("替换为 GIF（留空=用原生圆圈）", c.spinnerGif, function (v) {
       c.spinnerGif = v;
       refreshAll(c);
+      buildPanel(panel, c);
     }, "点击右侧「浏览」选择 GIF 图片", true));
-    // 预览当前效果
-    var spinPreviewWrap = el("div", "display:flex;align-items:center;gap:10px;margin:2px 0 8px");
-    spinPreviewWrap.appendChild(el("span", "color:#bbb;font-size:11px", "预览："));
+    if (c.spinnerGif) {
+      panel.appendChild(row("GIF 缩放", slider(c.spinnerGifScale, function (v) {
+        c.spinnerGifScale = v;
+        save(c);
+        applyCss(c);
+      }, 50, 300, 10, function (v) { return v + "%"; })));
+    }
+    // 预览当前效果（用独立类名，不挂 .animate-spin：
+    // 否则全局 GIF 替换样式会把预览元素本身也替换，出现「两个 GIF」）
+    var spinPreviewWrap = el("div", "display:flex;align-items:center;gap:12px;margin:2px 0 8px");
+    spinPreviewWrap.appendChild(el("span", "color:#bbb;font-size:11px;flex:0 0 auto", "预览："));
     var pv1 = document.createElement("span");
-    pv1.className = "animate-spin";
+    pv1.className = "zcode-skin-pv-ring";
     pv1.style.cssText = "display:inline-block;width:16px;height:16px;border-radius:9999px;border:2px solid currentColor;border-top-color:transparent";
     var pv2 = document.createElement("span");
-    pv2.className = "animate-spin";
-    pv2.style.cssText = "display:inline-block;width:14px;height:14px";
+    pv2.className = "zcode-skin-pv-dot";
+    pv2.style.cssText = "display:inline-block;width:14px;height:14px;color:#ccc";
     spinPreviewWrap.appendChild(pv1);
     spinPreviewWrap.appendChild(pv2);
     spinPreviewWrap.appendChild(el("span", "color:#888;font-size:11px", "(与侧栏实际效果同步)"));
@@ -638,6 +658,8 @@
     var o = c.opacities || {};
     var sub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "分区透明度");
     panel.appendChild(sub);
+    var hintEl = el("div", "display:none;margin:-2px 0 8px;color:#e8a13a;font-size:11px;line-height:1.5");
+    panel.appendChild(hintEl);
     for (var k in VAR_MAP) {
       (function (key) {
         var r = row(LABELS[key] || key, slider(o[key], function (v) {
@@ -645,6 +667,20 @@
           refreshAll(c);
         }));
         bindSliderPreview(r, key);
+        // 悬停时若页面上找不到对应元素，在面板里给出「窗口未打开」提示
+        r.addEventListener("mouseenter", function () {
+          var sels = HIGHLIGHT_CLASS[key];
+          if (!sels) { return; }
+          var found = false;
+          try { found = !!document.querySelector(sels.join(",")); } catch (e) {}
+          if (!found) {
+            hintEl.textContent = "⚠ 当前界面上没有找到「" + (LABELS[key] || key) + "」对应的可见区域——它所在的窗口/面板可能没打开（如菜单、悬浮提示、终端）。打开后悬停本滑杆即可看到红框。";
+            hintEl.style.display = "block";
+          } else {
+            hintEl.style.display = "none";
+          }
+        });
+        r.addEventListener("mouseleave", function () { hintEl.style.display = "none"; });
         panel.appendChild(r);
       })(k);
     }
