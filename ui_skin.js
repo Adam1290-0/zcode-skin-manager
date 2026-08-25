@@ -24,9 +24,7 @@
     videoPaused: false,
     tint: "22,22,22",
     effect: "none",
-    spinnerColor: "",
-    spinnerGif: "",
-    spinnerGifScale: 100,
+    spinnerGif: "",    spinnerGifScale: 100,
     spinnerGifRatio: 1,
     spinnerGifLock: true,
     spinnerGifBlend: "",
@@ -220,19 +218,23 @@
     // GIF 尺寸策略：元素盒按「宽 spinnerGifScale% × 高 宽/ratio」显式撑开，
     // 图片用 100%/100% 填满盒子 → 非正方形（如长条）原图也能完整显示不裁剪。
     var spinCss = [];
-    if (c.spinnerColor) {
-      spinCss.push(".animate-spin{color:" + c.spinnerColor + " !important}");
-    }
     if (c.spinnerGif) {
       var scale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
       var ratio = Number(c.spinnerGifRatio) || 1;
       if (ratio < 0.2) ratio = 0.2;
       if (ratio > 5) ratio = 5;
-      // blend: multiply 去白底 / screen 去黑底；同时解除 Tailwind preflight 的
-      // max-width/max-height 限制，否则元素宽度被父容器钳死、放大不生效
+      // 底色处理：
+      //   multiply 去白底 / screen 去黑底；
+      //   auto 智能去底——按检测到的底色亮度选 multiply 或 screen，
+      //   并用 hue-rotate/saturate 抑制彩色底（紫/灰/蓝等）与前景的混淆
       var blendCss = "";
-      if (c.spinnerGifBlend === "multiply") blendCss = "mix-blend-mode:multiply !important;";
-      else if (c.spinnerGifBlend === "screen") blendCss = "mix-blend-mode:screen !important;";
+      if (c.spinnerGifBlend === "multiply") {
+        blendCss = "mix-blend-mode:multiply !important;";
+      } else if (c.spinnerGifBlend === "screen") {
+        blendCss = "mix-blend-mode:screen !important;";
+      } else if (c.spinnerGifBlend === "auto" && c._gifAutoBlend) {
+        blendCss = c._gifAutoBlend;
+      }
       spinCss.push(
         ".animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;" +
         "width:" + Math.round(scale * 16) + "px !important;height:" + Math.round(scale * 16 / ratio) + "px !important;" +
@@ -489,7 +491,7 @@
     return wrap;
   }
 
-  function textField(label, val, onChange, placeholder, browse) {
+  function textField(label, val, onChange, placeholder, browse, extFilter) {
     var wrap = el("div", "flex:1;display:flex;flex-direction:column;gap:2px;margin-bottom:8px");
     wrap.appendChild(el("div", "color:#bbb;font-size:11px;margin-bottom:2px", label));
     var inputRow = el("div", "display:flex;gap:6px;align-items:center");
@@ -506,14 +508,22 @@
     if (browse) {
       var b = mkBtn("浏览…");
       b.style.cssText += ";flex:0 0 auto;white-space:nowrap";
-      b.title = "选择文件";
+      b.title = "选择文件" + (extFilter ? "（仅限 " + extFilter + "）" : "");
       b.onclick = function () {
         if (window.zcode && typeof window.zcode.selectFile === "function") {
           Promise.resolve(window.zcode.selectFile()).then(function (path) {
-            if (path) {
-              input.value = path;
-              onChange(path);
+            if (!path) return;
+            // ZCode 的 selectFile 不支持传入过滤器，这里前端校验扩展名
+            if (extFilter) {
+              var exts = extFilter.split(",").map(function (s) { return s.trim().toLowerCase(); });
+              var ok = exts.some(function (ext) { return path.toLowerCase().slice(-ext.length) === ext; });
+              if (!ok) {
+                alert("请选择 " + extFilter + " 格式的文件\n（当前选中：" + path.split(/[\\/]/).pop() + "）");
+                return;
+              }
             }
+            input.value = path;
+            onChange(path);
           }).catch(function (e) {
             console.error("[zcode-skin] 选择文件失败:", e);
             alert("选择文件失败：" + (e && e.message ? e.message : e));
@@ -617,41 +627,31 @@
       refreshAll(c);
     }));
 
-    // 视频控制（仅视频壁纸时显示）
+    // 视频控制（仅视频壁纸时显示）：速度滑杆拉到最左（0）= 暂停，一行搞定
     if (isVideoSrc(c.wallpaper)) {
-      panel.appendChild(row("视频速度", slider(c.videoSpeed, function (v) {
-        c.videoSpeed = v;
+      panel.appendChild(row("视频速度", slider(c.videoPaused ? 0 : (c.videoSpeed || 1), function (v) {
+        if (v <= 0) {
+          c.videoPaused = true;
+        } else {
+          c.videoPaused = false;
+          c.videoSpeed = v;
+        }
         save(c);
         applyVideoControl(c);
-      }, 0.25, 2, 0.25, function (v) { return v + "x"; })));
-      var pauseRow = row("暂停视频", (function () {
-        var btn = mkBtn(c.videoPaused ? "▶ 播放" : "⏸ 暂停");
-        btn.onclick = function () {
-          c.videoPaused = !c.videoPaused;
-          btn.textContent = c.videoPaused ? "▶ 播放" : "⏸ 暂停";
-          save(c);
-          applyVideoControl(c);
-        };
-        return btn;
-      })());
-      panel.appendChild(pauseRow);
+      }, 0, 2, 0.25, function (v) { return v <= 0 ? "⏸" : v + "x"; })));
     }
 
     // 处理中图标（旋转齿轮/圆圈）定制
     var spinSub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "处理中图标（加载圈）");
     panel.appendChild(spinSub);
-    panel.appendChild(textField("图标颜色（如 #ff5c5c，留空=默认）", c.spinnerColor, function (v) {
-      c.spinnerColor = v;
-      refreshAll(c);
-    }, "#38bdf8 / red / rgba(56,189,248,.9)", false));
     panel.appendChild(textField("替换为 GIF（留空=用原生圆圈）", c.spinnerGif, function (v) {
       var changed = v !== c.spinnerGif;
       c.spinnerGif = v;
       refreshAll(c);
       if (changed) buildPanel(panel, c);
-    }, "点击右侧「浏览」选择 GIF 图片", true));
+    }, "点击右侧「浏览」选择 GIF 图片", true, ".gif"));
     if (c.spinnerGif) {
-      // 读取图片真实宽高比，让非正方形（长条等）GIF 能按原比例完整显示
+      // 读取图片真实宽高比 + 智能去底时检测底色
       if (!c.spinnerGifRatio || c._gifRatioSrc !== c.spinnerGif) {
         var probe = new Image();
         probe.onload = function () {
@@ -664,6 +664,53 @@
           }
         };
         probe.src = toFileUrl(c.spinnerGif);
+      }
+      // 智能去底：采样首帧四角+边缘中点像素，取最接近纯色的一块作为背景色，
+      // 亮底用 multiply、暗底用 screen；彩色/灰底额外用 saturate+hue-rotate 压制
+      if (c.spinnerGifBlend === "auto" && c._gifAutoSrc !== c.spinnerGif) {
+        (function detectBg() {
+          var img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = function () {
+            try {
+              var w = img.naturalWidth, h = img.naturalHeight;
+              var cv = document.createElement("canvas");
+              cv.width = w; cv.height = h;
+              var cx = cv.getContext("2d");
+              cx.drawImage(img, 0, 0);
+              var pts = [[1,1],[w-2,1],[1,h-2],[w-2,h-2],[Math.floor(w/2),1],[Math.floor(w/2),h-2],[1,Math.floor(h/2)],[w-2,Math.floor(h/2)]];
+              var rs=0, gs=0, bs=0;
+              pts.forEach(function (p) {
+                var d = cx.getImageData(p[0], p[1], 1, 1).data;
+                rs += d[0]; gs += d[1]; bs += d[2];
+              });
+              rs /= pts.length; gs /= pts.length; bs /= pts.length;
+              var lum = 0.299*rs + 0.587*gs + 0.114*bs; // 0-255
+              var maxc = Math.max(rs,gs,bs), minc = Math.min(rs,gs,bs);
+              var sat = maxc === 0 ? 0 : (maxc - minc) / maxc; // 0-1 饱和度近似
+              var css;
+              if (lum >= 128) {
+                // 亮底：multiply 去掉；若带颜色（紫/蓝/灰偏色）加饱和度压制
+                css = "mix-blend-mode:multiply !important;";
+                if (sat > 0.12 || (maxc - minc) > 24) css += "filter:saturate(1.4) contrast(1.15) !important;";
+              } else {
+                // 暗底：screen 去掉；深灰/深彩同理
+                css = "mix-blend-mode:screen !important;";
+                if (sat > 0.12 || (maxc - minc) > 24) css += "filter:saturate(1.4) contrast(1.15) !important;";
+              }
+              c._gifAutoBlend = css;
+              c._gifAutoSrc = c.spinnerGif;
+              save(c);
+              applyCss(c);
+            } catch (e) {
+              // canvas 被跨域污染等异常：退化为不处理
+              c._gifAutoBlend = "";
+              c._gifAutoSrc = c.spinnerGif;
+              save(c);
+            }
+          };
+          img.src = toFileUrl(c.spinnerGif);
+        })();
       }
       // 锁定比例开关：开启后拖宽度/高度任一滑杆，另一个按原始比例联动
       var lockRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
@@ -703,16 +750,31 @@
       }
       panel.appendChild(row("宽度", slider(c.spinnerGifScale, onWidth, 50, 300, 5, function (v) { return v + "%"; })));
       panel.appendChild(row("高度", slider(c.spinnerGifLock ? c.spinnerGifScale : (c.spinnerGifRatio ? Math.round(100 / c.spinnerGifRatio) : 100), onHeight, 25, 300, 5, function (v) { return v + "%"; })));
-      // 底色处理：白底 GIF 用 multiply、黑底用 screen 变透明
-      panel.appendChild(selectField("GIF 底色处理", c.spinnerGifBlend || "", {
-        "": "不处理（保留原样）",
-        "multiply": "去白底（白色变透明）",
-        "screen": "去黑底（黑色变透明）"
-      }, function (v) {
-        c.spinnerGifBlend = v;
+      // 底色处理与下拉框同行（左右布局）
+      var blendRow = el("div", "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px");
+      blendRow.appendChild(el("span", "flex:0 0 84px;color:#bbb;font-size:12px", "底色处理"));
+      var blendSel = document.createElement("select");
+      blendSel.style.cssText = "flex:1;min-width:0;box-sizing:border-box;background:rgba(30,30,30,.95);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:5px 8px;color:#eee;font-size:12px";
+      var blendOpts = {
+        "": "不处理",
+        "auto": "智能去底（自动识别）",
+        "multiply": "去白底",
+        "screen": "去黑底"
+      };
+      for (var bkey in blendOpts) {
+        var bopt = document.createElement("option");
+        bopt.value = bkey;
+        bopt.textContent = blendOpts[bkey];
+        bopt.style.cssText = "background:#1e1e1e;color:#eee";
+        if (bkey === (c.spinnerGifBlend || "")) bopt.selected = true;
+        blendSel.appendChild(bopt);
+      }
+      blendSel.addEventListener("change", function () {
+        c.spinnerGifBlend = blendSel.value;
         refreshAll(c);
-        buildPanel(panel, c);
-      }));
+      });
+      blendRow.appendChild(blendSel);
+      panel.appendChild(blendRow);
     }
     // 预览当前效果（用独立类名 + 按配置内联样式，与侧栏全局样式互不干扰）
     var spinPreviewWrap = el("div", "display:flex;align-items:center;gap:12px;margin:2px 0 8px");
@@ -721,7 +783,13 @@
     if (c.spinnerGif) {
       var pvScale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
       var pvRatio = Math.min(5, Math.max(0.2, Number(c.spinnerGifRatio) || 1));
-      var pvBlend = c.spinnerGifBlend === "multiply" ? ";mix-blend-mode:multiply" : (c.spinnerGifBlend === "screen" ? ";mix-blend-mode:screen" : "");
+      var pvBlend = "";
+      if (c.spinnerGifBlend === "multiply") pvBlend = ";mix-blend-mode:multiply";
+      else if (c.spinnerGifBlend === "screen") pvBlend = ";mix-blend-mode:screen";
+      else if (c.spinnerGifBlend === "auto" && c._gifAutoBlend) {
+        // 与全局样式同一份检测结果；把 !important 去掉供内联使用
+        pvBlend = ";" + c._gifAutoBlend.replace(/!important/g, "");
+      }
       pv1.className = "zcode-skin-pv";
       pv1.style.cssText =
         "display:inline-block;border-radius:0;" +
@@ -730,7 +798,6 @@
     } else {
       pv1.className = "zcode-skin-pv-ring";
       pv1.style.cssText = "display:inline-block;width:16px;height:16px;border-radius:9999px;border:2px solid currentColor;border-top-color:transparent";
-      if (c.spinnerColor) pv1.style.color = c.spinnerColor;
     }
     spinPreviewWrap.appendChild(pv1);
     spinPreviewWrap.appendChild(el("span", "color:#888;font-size:11px", "(与侧栏实际效果同步)"));
@@ -738,17 +805,24 @@
 
     // 分区透明度
     var o = c.opacities || {};
-    var sub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "分区透明度");
+    // 标题上边距收窄（10px→4px），去掉与预览区之间的多余空行
+    var sub = el("div", "margin:4px 0 2px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:6px", "分区透明度");
     panel.appendChild(sub);
     // 提示区固定高度预留，出现/消失不改变布局（否则会挤压滑杆行，
     // 行位移触发 mouseleave→隐藏→mouseenter→显示 的循环，导致面板乱抖）
-    var hintEl = el("div", "height:34px;overflow:hidden;margin:-2px 0 4px;color:#e8a13a;font-size:11px;line-height:1.5;transition:opacity .15s;opacity:0");
+    var hintEl = el("div", "height:0;overflow:hidden;margin:0;color:#e8a13a;font-size:11px;line-height:1.5;transition:height .15s,opacity .15s;opacity:0");
     panel.appendChild(hintEl);
     function showHint(text) {
       hintEl.textContent = text;
+      hintEl.style.height = "34px";
       hintEl.style.opacity = "1";
+      hintEl.style.marginBottom = "4px";
     }
-    function hideHint() { hintEl.style.opacity = "0"; }
+    function hideHint() {
+      hintEl.style.height = "0";
+      hintEl.style.opacity = "0";
+      hintEl.style.marginBottom = "0";
+    }
     for (var k in VAR_MAP) {
       (function (key) {
         var r = row(LABELS[key] || key, slider(o[key], function (v) {
