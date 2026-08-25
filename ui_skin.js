@@ -256,14 +256,21 @@
       var ml = Math.round(gw / 2) - tx;
       var mt = Math.round(gh / 2) - ty;
       spinCss.push(
-        // 方案 B（裸 svg 兜底）：background 直接盖住描边（v1.4.8 已验证可显示）
-        "svg.animate-spin:not([data-zcode-skin-host]){" +
+        // 方案 B（裸 svg 兜底）：background 直接盖住描边（v1.4.8 已验证可显示）。
+        // ⚠️ 必须限定 scope（#sidebar / .history-message / [data-history-open]）——
+        // 设置页等处的 svg.animate-spin 不在 scope 内、不会被 JS 打 data-host 标记，
+        // 若选择器不带 scope 前缀会被这条全局规则误伤（v1.4.6 教训）。
+        "#sidebar svg.animate-spin:not([data-zcode-skin-host])," +
+        ".history-message svg.animate-spin:not([data-zcode-skin-host])," +
+        "[data-history-open] svg.animate-spin:not([data-zcode-skin-host]){" +
         "animation:none !important;border-radius:0 !important;" +
         "width:" + gw + "px !important;height:" + gh + "px !important;" +
         "max-width:none !important;max-height:none !important;" +
         "transform:translate(" + tx + "px," + ty + "px) !important;" +
         "background:center / 100% 100% no-repeat url(\"" + gifUrl + "\") !important}" +
-        "svg.animate-spin:not([data-zcode-skin-host])>*{display:none !important}" +
+        "#sidebar svg.animate-spin:not([data-zcode-skin-host])>*," +
+        ".history-message svg.animate-spin:not([data-zcode-skin-host])>*," +
+        "[data-history-open] svg.animate-spin:not([data-zcode-skin-host])>*{display:none !important}" +
         // 方案 A（有 HTML 包装层）：img 注入父级；父级定位/隔离由 JS 内联设置
         "svg.animate-spin[data-zcode-skin-host]{opacity:0 !important}" +
         "img.zcode-skin-gif{" +

@@ -14,7 +14,8 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 
 | 补丁版本 | 适配 ZCode 版本 | 状态 | 主要变化 |
 |---|---|---|---|
-| **v1.4.6（最新）** | **3.7.6 / 3.8.1 / 3.9.1** | ✅ 当前维护版本 | GIF 加载图支持位置偏移微调 |
+| **v1.5.2（最新）** | **3.7.6 / 3.8.1 / 3.9.1** | ✅ 当前维护版本 | 修复方案B兜底选择器作用域、GIF偏移/更换不生效/去底色失效 |
+| v1.4.6 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | GIF 加载图支持位置偏移微调 |
 | v1.4.5 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | UI 精简：视频速度/暂停合一、智能去底、.gif 文件过滤 |
 | v1.4.4 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | 修复面板抖动/GIF 预览/缩放钳制，新增 GIF 底色透明处理 |
 | v1.4.0 – v1.4.3 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | 红框滑块预览、GIF 替换加载圈、比例锁定 |
@@ -200,6 +201,22 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 - 加载圈是 lucide SVG + `.animate-spin` + `currentColor`，因此可整体替换为 GIF
 
 ### 更新日志 / Changelog
+
+### v1.5.2
+
+- 🛡️ 修复方案B兜底选择器未限定作用域、可能误伤设置页加载圈的隐患（选择器全部加 #sidebar / 聊天历史区前缀）
+- ✅ 全面自检 + 隔离实测通过
+
+### v1.5.1
+
+- 📍 修复 GIF 位置偏移数行：注入时给父级内联 position:relative，定位锚点固定在图标处；img 改用 left/top + 负 margin 定位
+- 🔄 修复更换 GIF 后不生效：MutationObserver 回调改调 window 级同步函数，永远拿到最新配置，不再捕获旧闭包
+- 🎨 修复去底色失效：给父级设 isolation:isolate，避免 opacity 过渡创建堆叠上下文隔离 mix-blend-mode
+
+### v1.5.0
+
+- 🔧 重写加载圈 GIF 替换为混合方案：有 HTML 包装层的 spinner 注入真实 img（支持去底色+偏移），裸 svg 用 background-image 兜底保证显示
+- 根因：ZCode 的 .animate-spin 元素本身就是 lucide 的 svg，往 svg 里塞 img 无效（SVG 命名空间不渲染 HTML img）
 
 ### v1.4.6
 
