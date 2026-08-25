@@ -220,10 +220,13 @@
     // 教训链：
     //   v1.4.8 background 方案 → 能显示，但 offset 百分比恒 0、mix-blend-mode 键不掉 background 像素
     //   v1.4.9 往 svg 里 appendChild(<img>) → SVG 命名空间不渲染 HTML img，GIF 永不显示
-    // v1.5.0 混合方案：
-    //   A. spinner 有 HTML 包装层（侧栏任务条目的 span）→ img 注入包装层，svg 隐藏 → 全功能（含去底）
-    //   B. 裸 svg（无 HTML 父级）→ svg 自身 background-image 盖住描边 → 能显示，无去底
-    //   offset 统一用 transform: translate 像素位移（background-position 百分比在 100% 尺寸下恒零）
+    //   v1.5.0 img 注入父级 → ①父级无 position:relative，img 相对远祖定位（高度差数行）；
+    //     ② observer 回调闭包捕获旧 GIF_URL，换 GIF 后仍用旧地址；
+    //     ③父级 opacity 过渡创建 stacking context，mix-blend-mode 被隔离失效
+    // v1.5.1 修复：
+    //   ① 注入时给父级内联 position:relative + isolation:isolate（定位与混合上下文都固定在父级）
+    //   ② observer 回调改调 window.__zcodeSkinSpinSync（每次 applyCss 刷新引用），不再捕获旧闭包
+    //   ③ img 用 left/top + 负 margin 定位，去掉 transform（少一层 stacking context）
     var spinCss = [];
     if (c.spinnerGif) {
       var scale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
@@ -249,29 +252,29 @@
       var gifUrl = toFileUrl(c.spinnerGif).replace(/"/g, "%22");
       var gw = Math.round(scale * 16);
       var gh = Math.round(scale * 16 / ratio);
+      // img 定位：left/top 50% 居中，负 margin 拉回半宽/半高并叠加 offset 位移
+      var ml = Math.round(gw / 2) - tx;
+      var mt = Math.round(gh / 2) - ty;
       spinCss.push(
-        // 公共作用域：#sidebar（侧栏任务条目）+ 聊天历史区；设置对话框由 JS 排除
-        "#sidebar .animate-spin,.history-message .animate-spin,[data-history-open] .animate-spin" +
-        "{position:relative !important;overflow:visible !important}" +
-        // 方案 A：注入到 HTML 包装层的 img；被接管的 svg 隐藏
-        "svg.animate-spin[data-zcode-skin-host]{opacity:0 !important}" +
-        "img.zcode-skin-gif{" +
-        "width:" + gw + "px !important;height:" + gh + "px !important;" +
-        "max-width:none !important;max-height:none !important;min-width:0 !important;min-height:0 !important;" +
-        "display:block !important;border-radius:0 !important;" +
-        "position:absolute !important;left:50% !important;top:50% !important;" +
-        "transform:translate(calc(-50% + " + tx + "px), calc(-50% + " + ty + "px)) !important;" +
-        "pointer-events:none;" +
-        blendCss +
-        "}" +
-        // 方案 B：裸 svg 兜底——background 直接盖住描边圆圈（v1.4.8 已验证可显示）
+        // 方案 B（裸 svg 兜底）：background 直接盖住描边（v1.4.8 已验证可显示）
         "svg.animate-spin:not([data-zcode-skin-host]){" +
         "animation:none !important;border-radius:0 !important;" +
         "width:" + gw + "px !important;height:" + gh + "px !important;" +
         "max-width:none !important;max-height:none !important;" +
         "transform:translate(" + tx + "px," + ty + "px) !important;" +
         "background:center / 100% 100% no-repeat url(\"" + gifUrl + "\") !important}" +
-        "svg.animate-spin:not([data-zcode-skin-host])>*{display:none !important}"
+        "svg.animate-spin:not([data-zcode-skin-host])>*{display:none !important}" +
+        // 方案 A（有 HTML 包装层）：img 注入父级；父级定位/隔离由 JS 内联设置
+        "svg.animate-spin[data-zcode-skin-host]{opacity:0 !important}" +
+        "img.zcode-skin-gif{" +
+        "width:" + gw + "px !important;height:" + gh + "px !important;" +
+        "max-width:none !important;max-height:none !important;min-width:0 !important;min-height:0 !important;" +
+        "display:block !important;border-radius:0 !important;" +
+        "position:absolute !important;left:50% !important;top:50% !important;" +
+        "margin-left:-" + ml + "px !important;margin-top:-" + mt + "px !important;" +
+        "pointer-events:none;" +
+        blendCss +
+        "}"
       );
     } else {
       document.querySelectorAll("img.zcode-skin-gif").forEach(function (n) { n.remove(); });
@@ -280,34 +283,37 @@
     if (spinCss.length) css += spinCss.join("");
     st.textContent = css;
 
-    // 动态维护：对每个 svg.animate-spin——
-    //   HTML 父级存在 → img 注入父级（方案 A，支持去底），svg 打 data 标记隐藏
+    // 动态维护（v1.5.1）：对每个 svg.animate-spin——
+    //   HTML 父级存在 → 父级内联 position:relative + isolation:isolate（定位/混合锚点固定），
+    //     img 注入父级（方案 A，支持去底），svg 打 data 标记隐藏
     //   父级也是 svg / 无 → 不注入，走方案 B 兜底
-    // React 重渲染后由 MutationObserver 自动补回。设置对话框内一律不动。
-    var GIF_URL = c.enabled && c.spinnerGif ? toFileUrl(c.spinnerGif) : "";
-    function isProtected(node) {
-      return !!node.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn');
-    }
-    function inScope(node) {
-      return !!node.closest("#sidebar, .history-message, [data-history-open]");
-    }
-    function syncSpinnerImgs() {
+    // observer 回调通过 window.__zcodeSkinSpinSync 间接调用，永远拿到最新闭包（修换 GIF 失效）。
+    window.__zcodeSkinSpinSync = function () {
+      var GIF_URL = c.enabled && c.spinnerGif ? toFileUrl(c.spinnerGif) : "";
       var spins = document.querySelectorAll("svg.animate-spin");
       for (var i = 0; i < spins.length; i++) {
         var svg = spins[i];
-        if (isProtected(svg) || !inScope(svg)) {
+        if (svg.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn') ||
+            !svg.closest("#sidebar, .history-message, [data-history-open]")) {
           if (svg.hasAttribute("data-zcode-skin-host")) svg.removeAttribute("data-zcode-skin-host");
           continue;
         }
         var p = svg.parentElement;
         var okHost = p && p.namespaceURI === "http://www.w3.org/1999/xhtml";
-        var img = okHost ? p.querySelector(":scope > img.zcode-skin-gif") : null;
         if (!GIF_URL) {
-          if (img) img.remove();
+          if (okHost) {
+            var old = p.querySelector(":scope > img.zcode-skin-gif");
+            if (old) old.remove();
+            p.style.position = "";
+            p.style.isolation = "";
+          }
           if (svg.hasAttribute("data-zcode-skin-host")) svg.removeAttribute("data-zcode-skin-host");
           continue;
         }
         if (!okHost) continue; // 裸 svg → 方案 B 兜底
+        if (p.style.position !== "relative") p.style.position = "relative";
+        if (p.style.isolation !== "isolate") p.style.isolation = "isolate";
+        var img = p.querySelector(":scope > img.zcode-skin-gif");
         if (!img) {
           img = document.createElement("img");
           img.className = "zcode-skin-gif";
@@ -317,11 +323,11 @@
         if (img.getAttribute("src") !== GIF_URL) img.setAttribute("src", GIF_URL);
         if (!svg.hasAttribute("data-zcode-skin-host")) svg.setAttribute("data-zcode-skin-host", "1");
       }
-    }
-    syncSpinnerImgs();
-    if (GIF_URL) {
+    };
+    window.__zcodeSkinSpinSync();
+    if (c.enabled && c.spinnerGif) {
       if (!window.__zcodeSkinSpinObserver) {
-        window.__zcodeSkinSpinObserver = new MutationObserver(function () { syncSpinnerImgs(); });
+        window.__zcodeSkinSpinObserver = new MutationObserver(function () { window.__zcodeSkinSpinSync(); });
         window.__zcodeSkinSpinObserver.observe(document.body, { childList: true, subtree: true });
       }
     } else if (window.__zcodeSkinSpinObserver) {
