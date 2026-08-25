@@ -28,6 +28,8 @@
     spinnerGifRatio: 1,
     spinnerGifLock: true,
     spinnerGifBlend: "",
+    spinnerGifOffX: 50,
+    spinnerGifOffY: 50,
     spinnerGifRatio: 1,
     opacities: {
       backgroundWinAlt: 0.35,
@@ -223,6 +225,12 @@
       var ratio = Number(c.spinnerGifRatio) || 1;
       if (ratio < 0.2) ratio = 0.2;
       if (ratio > 5) ratio = 5;
+      // 位置微调：offX/offY 为百分比（0-100，默认 50=居中），
+      // 通过 background-position 实现非破坏性偏移，不改动元素盒本身
+      var offX = Math.max(0, Math.min(100, Number(c.spinnerGifOffX)));
+      var offY = Math.max(0, Math.min(100, Number(c.spinnerGifOffY)));
+      if (isNaN(offX)) offX = 50;
+      if (isNaN(offY)) offY = 50;
       // 底色处理：
       //   multiply 去白底 / screen 去黑底；
       //   auto 智能去底——按检测到的底色亮度选 multiply 或 screen，
@@ -241,7 +249,7 @@
         "max-width:none !important;max-height:none !important;min-width:0 !important;min-height:0 !important;" +
         "flex:0 0 auto !important;display:inline-block !important;overflow:visible;" +
         blendCss +
-        "background:center / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
+        "background:" + offX + "% " + offY + "% / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
         "transform:none !important}" +
         ".animate-spin>*,.animate-spin svg{display:none !important}"
       );
@@ -750,6 +758,19 @@
       }
       panel.appendChild(row("宽度", slider(c.spinnerGifScale, onWidth, 50, 300, 5, function (v) { return v + "%"; })));
       panel.appendChild(row("高度", slider(c.spinnerGifLock ? c.spinnerGifScale : (c.spinnerGifRatio ? Math.round(100 / c.spinnerGifRatio) : 100), onHeight, 25, 300, 5, function (v) { return v + "%"; })));
+      // 位置微调：GIF 内容不居中时，放大后可在此校正偏移（50=居中）
+      panel.appendChild(row("位置·横", slider(isNaN(Number(c.spinnerGifOffX)) ? 50 : Number(c.spinnerGifOffX), function (v) {
+        c.spinnerGifOffX = v;
+        save(c);
+        applyCss(c);
+        buildPanel(panel, c);
+      }, 0, 100, 1, function (v) { return Math.round(v) + "%"; })));
+      panel.appendChild(row("位置·纵", slider(isNaN(Number(c.spinnerGifOffY)) ? 50 : Number(c.spinnerGifOffY), function (v) {
+        c.spinnerGifOffY = v;
+        save(c);
+        applyCss(c);
+        buildPanel(panel, c);
+      }, 0, 100, 1, function (v) { return Math.round(v) + "%"; })));
       // 底色处理与下拉框同行（左右布局）
       var blendRow = el("div", "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px");
       blendRow.appendChild(el("span", "flex:0 0 84px;color:#bbb;font-size:12px", "底色处理"));
@@ -791,10 +812,12 @@
         pvBlend = ";" + c._gifAutoBlend.replace(/!important/g, "");
       }
       pv1.className = "zcode-skin-pv";
+      var pvOffX = isNaN(Number(c.spinnerGifOffX)) ? 50 : Math.max(0, Math.min(100, Number(c.spinnerGifOffX)));
+      var pvOffY = isNaN(Number(c.spinnerGifOffY)) ? 50 : Math.max(0, Math.min(100, Number(c.spinnerGifOffY)));
       pv1.style.cssText =
         "display:inline-block;border-radius:0;" +
         "width:" + Math.round(pvScale * 16) + "px;height:" + Math.round(pvScale * 16 / pvRatio) + "px;max-width:none;max-height:none;" +
-        "background:center / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\")" + pvBlend;
+        "background:" + pvOffX + "% " + pvOffY + "% / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\")" + pvBlend;
     } else {
       pv1.className = "zcode-skin-pv-ring";
       pv1.style.cssText = "display:inline-block;width:16px;height:16px;border-radius:9999px;border:2px solid currentColor;border-top-color:transparent";
