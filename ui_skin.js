@@ -216,27 +216,28 @@
     var css = buildCss(c);
 
     // 会话/任务「处理中」旋转图标：ZCode 用 .animate-spin + currentColor（lucide 圆弧 SVG）。
-    // 换色：直接改 color；换 GIF：隐藏 svg 旋转圈，用 background-image 盖一个同尺寸 GIF。
-    // ⚠️ 范围必须限定在左侧边栏（aside.bg-sidebar）内部——全局替换会误伤设置页里
-    // 所有借用 .animate-spin 做加载态的控件（如子智能体「思考强度」的加载中开关）。
-    // GIF 尺寸策略：元素盒按「宽 spinnerGifScale% × 高 宽/ratio」显式撑开，
-    // 图片用 100%/100% 填满盒子 → 非正方形（如长条）原图也能完整显示不裁剪。
+    // 换 GIF：在每个侧栏 spinner 元素内注入一个 <img> 子元素（MutationObserver 动态维护）。
+    // 为什么不用 background-image + mix-blend-mode：
+    //   ① background-size:100% 100% 时 background-position 百分比恒为 0，offset 滑杆无效；
+    //   ② mix-blend-mode 只作用于元素矩形整体，无法去掉 background-image 里的白色像素。
+    // <img> 的像素内容可以直接被 mix-blend-mode 键控掉底色，offset 用 transform 实现。
     var spinCss = [];
     if (c.spinnerGif) {
       var scale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
       var ratio = Number(c.spinnerGifRatio) || 1;
       if (ratio < 0.2) ratio = 0.2;
       if (ratio > 5) ratio = 5;
-      // 位置微调：offX/offY 为百分比（0-100，默认 50=居中），
-      // 通过 background-position 实现非破坏性偏移，不改动元素盒本身
-      var offX = Math.max(0, Math.min(100, Number(c.spinnerGifOffX)));
-      var offY = Math.max(0, Math.min(100, Number(c.spinnerGifOffY)));
+      // 位置微调：offX/offY 0-100（50=不动），换算为 translate 像素偏移（±8px 基准×缩放）
+      var offX = Number(c.spinnerGifOffX);
+      var offY = Number(c.spinnerGifOffY);
       if (isNaN(offX)) offX = 50;
       if (isNaN(offY)) offY = 50;
-      // 底色处理：
-      //   multiply 去白底 / screen 去黑底；
-      //   auto 智能去底——按检测到的底色亮度选 multiply 或 screen，
-      //   并用 hue-rotate/saturate 抑制彩色底（紫/灰/蓝等）与前景的混淆
+      offX = Math.max(0, Math.min(100, offX));
+      offY = Math.max(0, Math.min(100, offY));
+      var tx = Math.round((offX - 50) / 50 * 8 * scale);
+      var ty = Math.round((offY - 50) / 50 * 8 * scale);
+      // 底色处理：multiply 去白底 / screen 去黑底（对 <img> 像素生效）；
+      // auto 智能去底按检测底色亮度选模式，彩色底叠加 saturate/contrast 压制
       var blendCss = "";
       if (c.spinnerGifBlend === "multiply") {
         blendCss = "mix-blend-mode:multiply !important;";
@@ -246,21 +247,58 @@
         blendCss = c._gifAutoBlend;
       }
       spinCss.push(
-        // 作用域限定在工作区侧栏面板内（#sidebar[data-workspace-sidebar-panel]，ZCode 主界面左侧栏根容器）。
-        // 不能用全局 .animate-spin——设置页里大量控件（如子智能体「思考强度」的加载中开关）
-        // 也用同一类，会被误替换（v1.4.6 实测 bug）。侧栏内的任务条目齿轮、加载态都在 #sidebar 内。
-        "#sidebar .animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;" +
+        // 作用域限定在工作区侧栏面板内（#sidebar），不误伤设置页的加载指示（v1.4.6 教训）。
+        // 原生 svg 圆圈隐藏，注入的 img 撑满元素盒。
+        "#sidebar .animate-spin{animation:none !important;border-radius:0 !important;border:0 !important;position:relative !important;overflow:visible !important}" +
+        "#sidebar .animate-spin>svg,#sidebar .animate-spin>span{display:none !important}" +
+        "#sidebar .animate-spin img.zcode-skin-gif{" +
         "width:" + Math.round(scale * 16) + "px !important;height:" + Math.round(scale * 16 / ratio) + "px !important;" +
         "max-width:none !important;max-height:none !important;min-width:0 !important;min-height:0 !important;" +
-        "flex:0 0 auto !important;display:inline-block !important;overflow:visible;" +
+        "display:block !important;border-radius:0 !important;" +
+        "position:absolute !important;left:50% !important;top:50% !important;" +
+        "transform:translate(calc(-50% + " + tx + "px), calc(-50% + " + ty + "px)) !important;" +
+        "pointer-events:none;" +
         blendCss +
-        "background:" + offX + "% " + offY + "% / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
-        "transform:none !important}" +
-        "#sidebar .animate-spin>*,#sidebar .animate-spin svg{display:none !important}"
+        "content:url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important}"
       );
+    } else {
+      // 关闭 GIF 后清理动态注入的 img
+      document.querySelectorAll("#sidebar .animate-spin img.zcode-skin-gif").forEach(function (n) { n.remove(); });
     }
     if (spinCss.length) css += spinCss.join("");
     st.textContent = css;
+
+    // 动态维护：往 #sidebar 内每个 .animate-spin 注入 <img class=zcode-skin-gif>，
+    // React 重渲染删掉后自动补回。用 content:url() 强制 img 显示指定 GIF（src 不可控）。
+    function syncSpinnerImgs() {
+      var root = document.getElementById("sidebar");
+      if (!root) return;
+      var spins = root.querySelectorAll(".animate-spin");
+      for (var i = 0; i < spins.length; i++) {
+        var host = spins[i];
+        var img = host.querySelector(":scope > img.zcode-skin-gif");
+        if (!c.enabled || !c.spinnerGif) {
+          if (img) img.remove();
+          continue;
+        }
+        if (!img) {
+          img = document.createElement("img");
+          img.className = "zcode-skin-gif";
+          img.alt = "";
+          host.appendChild(img);
+        }
+      }
+    }
+    syncSpinnerImgs();
+    if (c.enabled && c.spinnerGif) {
+      if (!window.__zcodeSkinSpinObserver) {
+        window.__zcodeSkinSpinObserver = new MutationObserver(function () { syncSpinnerImgs(); });
+        window.__zcodeSkinSpinObserver.observe(document.body, { childList: true, subtree: true });
+      }
+    } else if (window.__zcodeSkinSpinObserver) {
+      window.__zcodeSkinSpinObserver.disconnect();
+      delete window.__zcodeSkinSpinObserver;
+    }
   }
 
   function applyImgs(c) {
