@@ -24,13 +24,13 @@
     videoPaused: false,
     tint: "22,22,22",
     effect: "none",
-    spinnerGif: "",    spinnerGifScale: 100,
+    spinnerGif: "",
+    spinnerGifScale: 100,
     spinnerGifRatio: 1,
-    spinnerGifLock: true,
     spinnerGifBlend: "",
-    spinnerGifOffX: 50,
-    spinnerGifOffY: 50,
-    spinnerGifRatio: 1,
+    spinnerGifOffX: 0,
+    spinnerGifOffY: 0,
+    _gifV2: true,
     opacities: {
       backgroundWinAlt: 0.35,
       background: 0.45,
@@ -117,6 +117,13 @@
         for (var k in c) merged[k] = c[k];
         if (c.opacities) {
           for (var k2 in c.opacities) merged.opacities[k2] = c.opacities[k2];
+        }
+        // 旧数据迁移：v1.5.x 的 offset 是 0-100 百分比（50=居中），v1.6 起改为 px（0=不偏移）。
+        // 缺少 _gifV2 标记的旧配置直接重置 offset 为 0，避免语义错乱。
+        if (!merged._gifV2) {
+          merged.spinnerGifOffX = 0;
+          merged.spinnerGifOffY = 0;
+          merged._gifV2 = true;
         }
         return merged;
       }
@@ -217,31 +224,26 @@
 
     // 会话/任务「处理中」旋转图标：ZCode 的 .animate-spin 元素本身就是 <svg>
     // （lucide createLucideIcon 直接 createElement('svg',{class:'lucide animate-spin'})）。
-    // 教训链：
-    //   v1.4.8 background 方案 → 能显示，但 offset 百分比恒 0、mix-blend-mode 键不掉 background 像素
-    //   v1.4.9 往 svg 里 appendChild(<img>) → SVG 命名空间不渲染 HTML img，GIF 永不显示
-    //   v1.5.0 img 注入父级 → ①父级无 position:relative，img 相对远祖定位（高度差数行）；
-    //     ② observer 回调闭包捕获旧 GIF_URL，换 GIF 后仍用旧地址；
-    //     ③父级 opacity 过渡创建 stacking context，mix-blend-mode 被隔离失效
-    // v1.5.1 修复：
-    //   ① 注入时给父级内联 position:relative + isolation:isolate（定位与混合上下文都固定在父级）
-    //   ② observer 回调改调 window.__zcodeSkinSpinSync（每次 applyCss 刷新引用），不再捕获旧闭包
-    //   ③ img 用 left/top + 负 margin 定位，去掉 transform（少一层 stacking context）
+    // v1.6.0 回归早期 v1.4.0 的纯 CSS background 方案——GIF 直接画在 svg 的 background 上，
+    // 不注入任何 DOM 节点。好处（也是修 v1.4.8~v1.5.3 那串 bug 的根本）：
+    //   ① timing 完美对齐：GIF 就是 svg 自身的背景，svg 因为 React 状态切换被移除（running→error 等）
+    //      时 GIF 随之消失，绝无「孤儿 img 残留」「与红点叠加」「hover 时 GIF 消失」等错位；
+    //   ② 无 img 注入，也就无需清理孤儿节点。
+    // 缩放用 width/height、偏移用 position:relative+left/top、去底用 mix-blend-mode 作用 svg 本身——
+    // 三者都不创建 stacking context（不用 transform / isolation），给 mix-blend-mode 去底最大机会生效。
+    // 作用域用 JS 打 data-zcode-skin-host 标记（黑名单排除），CSS 只作用带标记的 svg。
     var spinCss = [];
     if (c.spinnerGif) {
-      var scale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
+      var scale = Math.max(20, Math.min(1000, Number(c.spinnerGifScale) || 100)) / 100;
       var ratio = Number(c.spinnerGifRatio) || 1;
       if (ratio < 0.2) ratio = 0.2;
       if (ratio > 5) ratio = 5;
       var offX = Number(c.spinnerGifOffX);
       var offY = Number(c.spinnerGifOffY);
-      if (isNaN(offX)) offX = 50;
-      if (isNaN(offY)) offY = 50;
-      offX = Math.max(0, Math.min(100, offX));
-      offY = Math.max(0, Math.min(100, offY));
-      // offset 基准 20px（原 8px 扩大 2.5 倍），GIF 中心点不居图正中心时有余量精细校正
-      var tx = Math.round((offX - 50) / 50 * 20 * scale);
-      var ty = Math.round((offY - 50) / 50 * 20 * scale);
+      if (isNaN(offX)) offX = 0;
+      if (isNaN(offY)) offY = 0;
+      offX = Math.max(-200, Math.min(200, offX));
+      offY = Math.max(-200, Math.min(200, offY));
       var blendCss = "";
       if (c.spinnerGifBlend === "multiply") {
         blendCss = "mix-blend-mode:multiply !important;";
@@ -252,84 +254,34 @@
       }
       var gw = Math.round(scale * 16);
       var gh = Math.round(scale * 16 / ratio);
-      // img 定位：left/top 50% 居中，负 margin 拉回半宽/半高并叠加 offset 位移
-      var ml = Math.round(gw / 2) - tx;
-      var mt = Math.round(gh / 2) - ty;
       spinCss.push(
-        // 只保留方案 A 的 img 样式。作用域（哪些 svg 该替换、哪些该排除）全部由 JS 侧
-        // window.__zcodeSkinSpinSync 的 closest() 精确判断；不再有「裸 svg background 兜底」——
-        // 那个兜底会误伤作用域外（如设置页、发送中的 loading）未打 data-host 标记的裸 svg。
-        "svg.animate-spin[data-zcode-skin-host]{opacity:0 !important}" +
-        "img.zcode-skin-gif{" +
+        "svg.animate-spin[data-zcode-skin-host]{" +
+        "animation:none !important;border-radius:0 !important;border:0 !important;" +
         "width:" + gw + "px !important;height:" + gh + "px !important;" +
         "max-width:none !important;max-height:none !important;min-width:0 !important;min-height:0 !important;" +
-        "display:block !important;border-radius:0 !important;" +
-        "position:absolute !important;left:50% !important;top:50% !important;" +
-        "margin-left:-" + ml + "px !important;margin-top:-" + mt + "px !important;" +
-        "pointer-events:none;" +
+        "position:relative !important;left:" + offX + "px !important;top:" + offY + "px !important;" +
+        "background:center / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
         blendCss +
-        "}"
+        "}" +
+        "svg.animate-spin[data-zcode-skin-host]>*{display:none !important}"
       );
-    } else {
-      document.querySelectorAll("img.zcode-skin-gif").forEach(function (n) { n.remove(); });
-      document.querySelectorAll("svg.animate-spin[data-zcode-skin-host]").forEach(function (n) { n.removeAttribute("data-zcode-skin-host"); });
     }
     if (spinCss.length) css += spinCss.join("");
     st.textContent = css;
 
-    // 动态维护（v1.5.3）：对每个 svg.animate-spin——
-    //   HTML 父级存在 → 父级内联 position:relative（定位锚点），img 注入父级，svg 打 data 标记隐藏
-    //   不设 isolation:isolate（会阻断去底的 mix-blend-mode 混合）
-    // observer 回调通过 window.__zcodeSkinSpinSync 间接调用，永远拿到最新闭包（修换 GIF 失效）。
+    // 打标（轻量，无节点注入）：给「应替换」的 svg.animate-spin 打 data-zcode-skin-host，
+    // CSS 据此显示 GIF。黑名单内的去掉标记。React 复用节点时标记自动保留、销毁时 observer 重新打标。
     window.__zcodeSkinSpinSync = function () {
-      var GIF_URL = c.enabled && c.spinnerGif ? toFileUrl(c.spinnerGif) : "";
-
-      // 第一步：清理「孤儿 img」——宿主 svg.animate-spin 已不存在时立即删除。
-      // 关键修复：任务状态 running→error 时 React 会移除 svg（转圈）改渲染红点，
-      // 但手动注入的 img 是 React 不感知的节点，不会被一并移除 → 残留 GIF 与红点叠加。
-      // 故以 img 为锚点反查宿主 svg，宿主消失了就清掉 img。
-      var imgs = document.querySelectorAll("img.zcode-skin-gif");
-      for (var k = 0; k < imgs.length; k++) {
-        var im = imgs[k];
-        var pp = im.parentElement;
-        var host = pp && pp.namespaceURI === "http://www.w3.org/1999/xhtml" ? pp.querySelector(":scope > svg.animate-spin") : null;
-        if (!host || !GIF_URL) {
-          im.remove();
-          if (pp) { pp.style.position = ""; pp.style.isolation = ""; }
-        }
-      }
-
-      // 第二步：遍历 svg.animate-spin，排除黑名单后一律替换（覆盖侧栏任务、主窗口运行态、任务时间线等）
+      var enabled = !!c.enabled && !!c.spinnerGif;
       var spins = document.querySelectorAll("svg.animate-spin");
       for (var i = 0; i < spins.length; i++) {
         var svg = spins[i];
-        // 黑名单排除：
-        //   设置对话框（子智能体编辑页的思考强度开关等，v1.4.6 教训）
-        //   皮肤面板/按钮自身
-        //   data-zcode-chat-loading-animate —— 聊天「生成/发送/重试」的通用加载动画（pZe 组件，非任务状态图标）
-        if (svg.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn, [data-zcode-chat-loading-animate]')) {
+        var excluded = svg.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn, [data-zcode-chat-loading-animate]');
+        if (!enabled || excluded) {
           if (svg.hasAttribute("data-zcode-skin-host")) svg.removeAttribute("data-zcode-skin-host");
-          continue;
+        } else {
+          if (!svg.hasAttribute("data-zcode-skin-host")) svg.setAttribute("data-zcode-skin-host", "1");
         }
-        var p = svg.parentElement;
-        var okHost = p && p.namespaceURI === "http://www.w3.org/1999/xhtml";
-        if (!GIF_URL) {
-          if (svg.hasAttribute("data-zcode-skin-host")) svg.removeAttribute("data-zcode-skin-host");
-          continue;
-        }
-        if (!okHost) continue; // 裸 svg → 方案 B 兜底
-        // 只设 position:relative 作定位锚点；不设 isolation:isolate——
-        // isolation 会创建隔离组，阻断 img 的 mix-blend-mode 向上与条目背景混合，反而使去底失效
-        if (p.style.position !== "relative") p.style.position = "relative";
-        var img = p.querySelector(":scope > img.zcode-skin-gif");
-        if (!img) {
-          img = document.createElement("img");
-          img.className = "zcode-skin-gif";
-          img.alt = "";
-          p.appendChild(img);
-        }
-        if (img.getAttribute("src") !== GIF_URL) img.setAttribute("src", GIF_URL);
-        if (!svg.hasAttribute("data-zcode-skin-host")) svg.setAttribute("data-zcode-skin-host", "1");
       }
     };
     window.__zcodeSkinSpinSync();
@@ -806,58 +758,46 @@
           img.src = toFileUrl(c.spinnerGif);
         })();
       }
-      // 锁定比例开关：开启后拖宽度/高度任一滑杆，另一个按原始比例联动
-      var lockRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
-      var lockCb = document.createElement("input");
-      lockCb.type = "checkbox";
-      lockCb.checked = !!c.spinnerGifLock;
-      lockCb.style.cssText = "accent-color:#38bdf8";
-      lockCb.addEventListener("change", function () {
-        c.spinnerGifLock = lockCb.checked;
-        save(c);
-        buildPanel(panel, c);
-      });
-      lockRow.appendChild(lockCb);
-      lockRow.appendChild(el("span", "color:#ccc;font-size:12px", "锁定长宽比（拖动时按原图比例联动）"));
-      panel.appendChild(lockRow);
-      var origRatio = Math.min(5, Math.max(0.2, Number(c.spinnerGifRatio) || 1)); // 原图比例，联动基准
-      function onWidth(v) {
-        c.spinnerGifScale = v;
-        if (c.spinnerGifLock) c.spinnerGifRatio = origRatio;
-        save(c);
-        applyCss(c);
-        if (!c.spinnerGifLock) return;
-        buildPanel(panel, c);
+      // v1.6：缩放/偏移改为数字输入框（比滑杆精确、范围大），加复位按钮
+      function numField(label, val, onChange, step, minV, maxV, unit) {
+        var r = el("div", "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px");
+        r.appendChild(el("span", "flex:0 0 84px;color:#bbb;font-size:12px", label));
+        var inp = document.createElement("input");
+        inp.type = "number";
+        inp.value = val;
+        inp.step = step;
+        inp.min = minV;
+        inp.max = maxV;
+        inp.style.cssText = "flex:1;min-width:0;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:5px 8px;color:#eee;font-size:12px";
+        inp.addEventListener("change", function () {
+          var v = Number(inp.value);
+          if (isNaN(v)) { inp.value = val; return; }
+          v = Math.max(minV, Math.min(maxV, v));
+          inp.value = v;
+          onChange(v);
+        });
+        r.appendChild(inp);
+        r.appendChild(el("span", "flex:0 0 auto;color:#888;font-size:11px", unit));
+        return r;
       }
-      function onHeight(v) {
-        var hPct = Math.max(20, v);
-        if (c.spinnerGifLock) {
-          // 锁定时高度滑杆只改整体缩放，比例始终等于原图
-          c.spinnerGifScale = hPct;
-          c.spinnerGifRatio = origRatio;
-        } else {
-          c.spinnerGifRatio = 100 / hPct;
-        }
+      function applyGifCss() { save(c); applyCss(c); }
+      panel.appendChild(numField("缩放", c.spinnerGifScale, function (v) { c.spinnerGifScale = v; applyGifCss(); }, 10, 20, 1000, "%"));
+      panel.appendChild(numField("偏移左右", c.spinnerGifOffX, function (v) { c.spinnerGifOffX = v; applyGifCss(); }, 1, -200, 200, "px"));
+      panel.appendChild(numField("偏移上下", c.spinnerGifOffY, function (v) { c.spinnerGifOffY = v; applyGifCss(); }, 1, -200, 200, "px"));
+      var resetRow = el("div", "display:flex;gap:8px;margin-bottom:8px");
+      var resetGif = mkBtn("复位（缩放100%·偏移归零）", "恢复默认缩放与偏移");
+      resetGif.style.cssText += ";flex:1";
+      resetGif.onclick = function () {
+        c.spinnerGifScale = 100;
+        c.spinnerGifOffX = 0;
+        c.spinnerGifOffY = 0;
         save(c);
         applyCss(c);
         buildPanel(panel, c);
-      }
-      panel.appendChild(row("宽度", slider(c.spinnerGifScale, onWidth, 50, 300, 5, function (v) { return v + "%"; })));
-      panel.appendChild(row("高度", slider(c.spinnerGifLock ? c.spinnerGifScale : (c.spinnerGifRatio ? Math.round(100 / c.spinnerGifRatio) : 100), onHeight, 25, 300, 5, function (v) { return v + "%"; })));
-      // 位置微调：GIF 内容不居中时，放大后可在此校正偏移（50=居中）
-      panel.appendChild(row("位置·横", slider(isNaN(Number(c.spinnerGifOffX)) ? 50 : Number(c.spinnerGifOffX), function (v) {
-        c.spinnerGifOffX = v;
-        save(c);
-        applyCss(c);
-        buildPanel(panel, c);
-      }, 0, 100, 1, function (v) { return Math.round(v) + "%"; })));
-      panel.appendChild(row("位置·纵", slider(isNaN(Number(c.spinnerGifOffY)) ? 50 : Number(c.spinnerGifOffY), function (v) {
-        c.spinnerGifOffY = v;
-        save(c);
-        applyCss(c);
-        buildPanel(panel, c);
-      }, 0, 100, 1, function (v) { return Math.round(v) + "%"; })));
-      // 底色处理与下拉框同行（左右布局）
+      };
+      resetRow.appendChild(resetGif);
+      panel.appendChild(resetRow);
+      // 底色处理（下拉）
       var blendRow = el("div", "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px");
       blendRow.appendChild(el("span", "flex:0 0 84px;color:#bbb;font-size:12px", "底色处理"));
       var blendSel = document.createElement("select");
@@ -888,7 +828,7 @@
     spinPreviewWrap.appendChild(el("span", "color:#bbb;font-size:11px;flex:0 0 auto", "预览："));
     var pv1 = document.createElement("span");
     if (c.spinnerGif) {
-      var pvScale = Math.max(50, Math.min(300, Number(c.spinnerGifScale) || 100)) / 100;
+      var pvScale = Math.max(20, Math.min(1000, Number(c.spinnerGifScale) || 100)) / 100;
       var pvRatio = Math.min(5, Math.max(0.2, Number(c.spinnerGifRatio) || 1));
       var pvBlend = "";
       if (c.spinnerGifBlend === "multiply") pvBlend = ";mix-blend-mode:multiply";
@@ -898,12 +838,12 @@
         pvBlend = ";" + c._gifAutoBlend.replace(/!important/g, "");
       }
       pv1.className = "zcode-skin-pv";
-      var pvOffX = isNaN(Number(c.spinnerGifOffX)) ? 50 : Math.max(0, Math.min(100, Number(c.spinnerGifOffX)));
-      var pvOffY = isNaN(Number(c.spinnerGifOffY)) ? 50 : Math.max(0, Math.min(100, Number(c.spinnerGifOffY)));
+      var pvOffX = isNaN(Number(c.spinnerGifOffX)) ? 0 : Math.max(-200, Math.min(200, Number(c.spinnerGifOffX)));
+      var pvOffY = isNaN(Number(c.spinnerGifOffY)) ? 0 : Math.max(-200, Math.min(200, Number(c.spinnerGifOffY)));
       pv1.style.cssText =
-        "display:inline-block;border-radius:0;" +
+        "display:inline-block;border-radius:0;position:relative;left:" + pvOffX + "px;top:" + pvOffY + "px;" +
         "width:" + Math.round(pvScale * 16) + "px;height:" + Math.round(pvScale * 16 / pvRatio) + "px;max-width:none;max-height:none;" +
-        "background:" + pvOffX + "% " + pvOffY + "% / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\")" + pvBlend;
+        "background:center / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\")" + pvBlend;
     } else {
       pv1.className = "zcode-skin-pv-ring";
       pv1.style.cssText = "display:inline-block;width:16px;height:16px;border-radius:9999px;border:2px solid currentColor;border-top-color:transparent";
