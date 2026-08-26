@@ -780,17 +780,18 @@
           img.src = toFileUrl(c.spinnerGif);
         })();
       }
-      // v1.6：缩放/偏移改为数字输入框（比滑杆精确、范围大），加复位按钮
-      function numField(label, val, onChange, step, minV, maxV, unit) {
-        var r = el("div", "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px");
-        r.appendChild(el("span", "flex:0 0 84px;color:#bbb;font-size:12px", label));
+      // v1.7.1：缩放/偏移一行三列紧凑布局（数字输入 + 单位后缀），复位为同行小按钮
+      function applyGifCss() { save(c); applyCss(c); }
+      function miniNum(val, onChange, step, minV, maxV, unit, title) {
+        var wrap = el("div", "flex:1;min-width:0;display:flex;align-items:center;gap:3px");
         var inp = document.createElement("input");
         inp.type = "number";
         inp.value = val;
         inp.step = step;
         inp.min = minV;
         inp.max = maxV;
-        inp.style.cssText = "flex:1;min-width:0;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:5px 8px;color:#eee;font-size:12px";
+        inp.title = title || "";
+        inp.style.cssText = "flex:1;min-width:0;width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:5px;padding:3px 4px;color:#eee;font-size:11px";
         inp.addEventListener("change", function () {
           var v = Number(inp.value);
           if (isNaN(v)) { inp.value = val; return; }
@@ -798,17 +799,22 @@
           inp.value = v;
           onChange(v);
         });
-        r.appendChild(inp);
-        r.appendChild(el("span", "flex:0 0 auto;color:#888;font-size:11px", unit));
-        return r;
+        wrap.appendChild(inp);
+        wrap.appendChild(el("span", "flex:0 0 auto;color:#888;font-size:10px", unit));
+        return wrap;
       }
-      function applyGifCss() { save(c); applyCss(c); }
-      panel.appendChild(numField("缩放", c.spinnerGifScale, function (v) { c.spinnerGifScale = v; applyGifCss(); }, 10, 20, 1000, "%"));
-      panel.appendChild(numField("偏移左右", c.spinnerGifOffX, function (v) { c.spinnerGifOffX = v; applyGifCss(); }, 1, -200, 200, "px"));
-      panel.appendChild(numField("偏移上下", c.spinnerGifOffY, function (v) { c.spinnerGifOffY = v; applyGifCss(); }, 1, -200, 200, "px"));
-      var resetRow = el("div", "display:flex;gap:8px;margin-bottom:8px");
-      var resetGif = mkBtn("复位（缩放100%·偏移归零）", "恢复默认缩放与偏移");
-      resetGif.style.cssText += ";flex:1";
+      var grid = el("div", "display:flex;gap:6px;margin-bottom:6px");
+      function gridCell(label, ctrl) {
+        var cell = el("div", "flex:1;min-width:0");
+        cell.appendChild(el("div", "color:#999;font-size:10px;margin-bottom:2px", label));
+        cell.appendChild(ctrl);
+        return cell;
+      }
+      grid.appendChild(gridCell("缩放%", miniNum(c.spinnerGifScale, function (v) { c.spinnerGifScale = v; applyGifCss(); }, 10, 20, 1000, "", "GIF 显示宽度，100=原始16px")));
+      grid.appendChild(gridCell("偏移X", miniNum(c.spinnerGifOffX, function (v) { c.spinnerGifOffX = v; applyGifCss(); }, 1, -200, 200, "px", "水平偏移，正右负左")));
+      grid.appendChild(gridCell("偏移Y", miniNum(c.spinnerGifOffY, function (v) { c.spinnerGifOffY = v; applyGifCss(); }, 1, -200, 200, "px", "垂直偏移，正下负上")));
+      var resetGif = mkBtn("↺", "复位：缩放100%·偏移归零");
+      resetGif.style.cssText += ";flex:0 0 auto;padding:3px 8px;font-size:12px";
       resetGif.onclick = function () {
         c.spinnerGifScale = 100;
         c.spinnerGifOffX = 0;
@@ -817,11 +823,11 @@
         applyCss(c);
         buildPanel(panel, c);
       };
-      resetRow.appendChild(resetGif);
-      panel.appendChild(resetRow);
+      grid.appendChild(resetGif);
+      panel.appendChild(grid);
       // 底色处理（下拉）
       var blendRow = el("div", "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px");
-      blendRow.appendChild(el("span", "flex:0 0 84px;color:#bbb;font-size:12px", "底色处理"));
+      blendRow.appendChild(el("span", "flex:0 0 60px;color:#bbb;font-size:12px", "底色处理"));
       var blendSel = document.createElement("select");
       blendSel.style.cssText = "flex:1;min-width:0;box-sizing:border-box;background:rgba(30,30,30,.95);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:5px 8px;color:#eee;font-size:12px";
       var blendOpts = {
@@ -860,10 +866,9 @@
         pvBlend = ";" + c._gifAutoBlend.replace(/!important/g, "");
       }
       pv1.className = "zcode-skin-pv";
-      var pvOffX = isNaN(Number(c.spinnerGifOffX)) ? 0 : Math.max(-200, Math.min(200, Number(c.spinnerGifOffX)));
-      var pvOffY = isNaN(Number(c.spinnerGifOffY)) ? 0 : Math.max(-200, Math.min(200, Number(c.spinnerGifOffY)));
+      // 预览只反映缩放与去底效果，不应用偏移——偏移是相对实际图标位置的微调，在侧栏看才有意义
       pv1.style.cssText =
-        "display:inline-block;border-radius:0;position:relative;left:" + pvOffX + "px;top:" + pvOffY + "px;" +
+        "display:inline-block;border-radius:0;" +
         "width:" + Math.round(pvScale * 16) + "px;height:" + Math.round(pvScale * 16 / pvRatio) + "px;max-width:none;max-height:none;" +
         "background:center / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\")" + pvBlend;
     } else {
@@ -877,10 +882,33 @@
     // 状态指示渲染分组
     var statusSub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "状态指示（红点/蓝点/对勾）");
     panel.appendChild(statusSub);
-    panel.appendChild(textField("失败颜色（留空=默认红）", c.statusError, function (v) { c.statusError = v; refreshAll(c); }, "#ff5f57 或 rgba(...)", false));
-    panel.appendChild(textField("未读颜色（留空=默认蓝）", c.statusUnread, function (v) { c.statusUnread = v; refreshAll(c); }, "#38bdf8", false));
-    panel.appendChild(textField("空闲颜色（留空=默认灰）", c.statusIdle, function (v) { c.statusIdle = v; refreshAll(c); }, "#9ca3af", false));
-    panel.appendChild(textField("完成颜色（留空=默认绿）", c.statusSuccess, function (v) { c.statusSuccess = v; refreshAll(c); }, "#46bf72", false));
+    // 四态颜色：原生取色器（点击弹出系统调色板），旁边 ↺ 恢复默认（清空自定义值）
+    function colorField(label, val, defColor, onChange) {
+      var r = el("div", "display:flex;align-items:center;gap:5px;margin-bottom:6px");
+      var pick = document.createElement("input");
+      pick.type = "color";
+      pick.value = val || defColor;
+      pick.title = val ? "当前自定义：" + val : "当前默认（点击修改）";
+      pick.style.cssText = "width:26px;height:22px;padding:0;border:1px solid rgba(255,255,255,.2);border-radius:5px;background:transparent;cursor:pointer;flex:0 0 auto";
+      pick.addEventListener("input", function () { onChange(pick.value); });
+      r.appendChild(pick);
+      r.appendChild(el("span", "flex:1;color:#ccc;font-size:11px", label));
+      var rst = mkBtn("↺", "恢复默认色");
+      rst.style.cssText += ";padding:2px 6px;font-size:11px;flex:0 0 auto";
+      rst.onclick = function () { onChange(""); buildPanel(panel, c); };
+      r.appendChild(rst);
+      return r;
+    }
+    var colorGrid = el("div", "display:flex;flex-wrap:wrap;gap:0 10px");
+    var colL = el("div", "flex:1;min-width:130px");
+    colL.appendChild(colorField("失败", c.statusError, "#ff5f57", function (v) { c.statusError = v; refreshAll(c); }));
+    colL.appendChild(colorField("未读", c.statusUnread, "#38bdf8", function (v) { c.statusUnread = v; refreshAll(c); }));
+    colorGrid.appendChild(colL);
+    var colR = el("div", "flex:1;min-width:130px");
+    colR.appendChild(colorField("空闲", c.statusIdle, "#9ca3af", function (v) { c.statusIdle = v; refreshAll(c); }));
+    colR.appendChild(colorField("完成", c.statusSuccess, "#46bf72", function (v) { c.statusSuccess = v; refreshAll(c); }));
+    colorGrid.appendChild(colR);
+    panel.appendChild(colorGrid);
     var pulseRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
     var pulseCb = document.createElement("input");
     pulseCb.type = "checkbox";
