@@ -309,7 +309,16 @@
     window.__zcodeSkinSpinSync();
     if (c.enabled && c.spinnerGif) {
       if (!window.__zcodeSkinSpinObserver) {
-        window.__zcodeSkinSpinObserver = new MutationObserver(function () { window.__zcodeSkinSpinSync(); });
+        // 节流：ZCode 是 React 应用，DOM 变更极频繁；observer 回调里全量遍历 svg 每次都跑会卡。
+        // 用 requestAnimationFrame 合帧——一帧内的多次变更只执行一次 sync。
+        window.__zcodeSkinSpinObserver = new MutationObserver(function () {
+          if (window.__zcodeSkinSpinScheduled) return;
+          window.__zcodeSkinSpinScheduled = true;
+          requestAnimationFrame(function () {
+            window.__zcodeSkinSpinScheduled = false;
+            if (window.__zcodeSkinSpinSync) window.__zcodeSkinSpinSync();
+          });
+        });
         window.__zcodeSkinSpinObserver.observe(document.body, { childList: true, subtree: true });
       }
     } else if (window.__zcodeSkinSpinObserver) {
@@ -318,25 +327,44 @@
     }
   }
 
+  // 记录当前已挂载的壁纸/侧栏路径：路径没变时复用现有元素，不重建——
+  // 否则改任何配置（如透明度滑杆）都会让视频壁纸重头播放（体验 bug）。
+  var currentWallpaper = null;
+  var currentSidebarImg = null;
+
   function applyImgs(c) {
     var g = document.getElementById(IMG_ID);
-    if (g) g.remove();
     var v = document.getElementById(SIDE_IMG_ID);
-    if (v) v.remove();
-    wallpaperVideo = null;
-    if (!c.enabled) return;
-    if (c.wallpaper) {
-      var media = mkMedia(IMG_ID, c.wallpaper, "100vw", "100vh", c);
-      if (c.blurWallpaper > 0) media.style.filter = "blur(" + c.blurWallpaper + "px)";
-      document.body.appendChild(media);
-      if (media.tagName === "VIDEO") {
-        wallpaperVideo = media;
-        applyVideoControl(c);
+
+    // 壁纸：路径没变且现有元素是视频 → 不重建，只更新模糊与控制参数
+    var wpSame = c.wallpaper === currentWallpaper;
+    if (wpSame && g && g.tagName === "VIDEO" && c.enabled) {
+      wallpaperVideo = g;
+      g.style.filter = c.blurWallpaper > 0 ? "blur(" + c.blurWallpaper + "px)" : "";
+      applyVideoControl(c);
+    } else {
+      if (g) g.remove();
+      wallpaperVideo = null;
+      if (c.enabled && c.wallpaper) {
+        var media = mkMedia(IMG_ID, c.wallpaper, "100vw", "100vh", c);
+        if (c.blurWallpaper > 0) media.style.filter = "blur(" + c.blurWallpaper + "px)";
+        document.body.appendChild(media);
+        if (media.tagName === "VIDEO") {
+          wallpaperVideo = media;
+          applyVideoControl(c);
+        }
       }
     }
-    if (c.sidebar) {
-      document.body.appendChild(mkMedia(SIDE_IMG_ID, c.sidebar, c.sidebarWidth + "px", "100vh", c));
+    currentWallpaper = c.enabled ? c.wallpaper : "";
+
+    // 侧栏图：路径没变则不重建
+    if (c.sidebar !== currentSidebarImg) {
+      if (v) v.remove();
+      if (c.enabled && c.sidebar) {
+        document.body.appendChild(mkMedia(SIDE_IMG_ID, c.sidebar, c.sidebarWidth + "px", "100vh", c));
+      }
     }
+    currentSidebarImg = c.enabled ? c.sidebar : "";
   }
 
   function applyVideoControl(c) {
@@ -353,11 +381,14 @@
 
   var fxTimer = null;
   var fxCanvas = null;
+  // resize 监听器引用：applyEffect 每次重建特效时先移除旧的，避免监听器泄漏
+  var fxResizeHandler = null;
 
   function applyEffect(c) {
     var old = document.getElementById(FX_ID);
     if (old) old.remove();
     if (fxTimer) { clearInterval(fxTimer); fxTimer = null; }
+    if (fxResizeHandler) { window.removeEventListener("resize", fxResizeHandler); fxResizeHandler = null; }
     fxCanvas = null;
     if (!c.enabled || !c.effect || c.effect === "none") return;
 
@@ -389,6 +420,7 @@
       H = fxCanvas.height = window.innerHeight;
     }
     resize();
+    fxResizeHandler = resize;
     window.addEventListener("resize", resize);
 
     var count = c.effect === "stars" ? 140 : 90;
