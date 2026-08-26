@@ -239,8 +239,9 @@
       if (isNaN(offY)) offY = 50;
       offX = Math.max(0, Math.min(100, offX));
       offY = Math.max(0, Math.min(100, offY));
-      var tx = Math.round((offX - 50) / 50 * 8 * scale);
-      var ty = Math.round((offY - 50) / 50 * 8 * scale);
+      // offset 基准 20px（原 8px 扩大 2.5 倍），GIF 中心点不居图正中心时有余量精细校正
+      var tx = Math.round((offX - 50) / 50 * 20 * scale);
+      var ty = Math.round((offY - 50) / 50 * 20 * scale);
       var blendCss = "";
       if (c.spinnerGifBlend === "multiply") {
         blendCss = "mix-blend-mode:multiply !important;";
@@ -249,29 +250,15 @@
       } else if (c.spinnerGifBlend === "auto" && c._gifAutoBlend) {
         blendCss = c._gifAutoBlend;
       }
-      var gifUrl = toFileUrl(c.spinnerGif).replace(/"/g, "%22");
       var gw = Math.round(scale * 16);
       var gh = Math.round(scale * 16 / ratio);
       // img 定位：left/top 50% 居中，负 margin 拉回半宽/半高并叠加 offset 位移
       var ml = Math.round(gw / 2) - tx;
       var mt = Math.round(gh / 2) - ty;
       spinCss.push(
-        // 方案 B（裸 svg 兜底）：background 直接盖住描边（v1.4.8 已验证可显示）。
-        // ⚠️ 必须限定 scope（#sidebar / .history-message / [data-history-open]）——
-        // 设置页等处的 svg.animate-spin 不在 scope 内、不会被 JS 打 data-host 标记，
-        // 若选择器不带 scope 前缀会被这条全局规则误伤（v1.4.6 教训）。
-        "#sidebar svg.animate-spin:not([data-zcode-skin-host])," +
-        ".history-message svg.animate-spin:not([data-zcode-skin-host])," +
-        "[data-history-open] svg.animate-spin:not([data-zcode-skin-host]){" +
-        "animation:none !important;border-radius:0 !important;" +
-        "width:" + gw + "px !important;height:" + gh + "px !important;" +
-        "max-width:none !important;max-height:none !important;" +
-        "transform:translate(" + tx + "px," + ty + "px) !important;" +
-        "background:center / 100% 100% no-repeat url(\"" + gifUrl + "\") !important}" +
-        "#sidebar svg.animate-spin:not([data-zcode-skin-host])>*," +
-        ".history-message svg.animate-spin:not([data-zcode-skin-host])>*," +
-        "[data-history-open] svg.animate-spin:not([data-zcode-skin-host])>*{display:none !important}" +
-        // 方案 A（有 HTML 包装层）：img 注入父级；父级定位/隔离由 JS 内联设置
+        // 只保留方案 A 的 img 样式。作用域（哪些 svg 该替换、哪些该排除）全部由 JS 侧
+        // window.__zcodeSkinSpinSync 的 closest() 精确判断；不再有「裸 svg background 兜底」——
+        // 那个兜底会误伤作用域外（如设置页、发送中的 loading）未打 data-host 标记的裸 svg。
         "svg.animate-spin[data-zcode-skin-host]{opacity:0 !important}" +
         "img.zcode-skin-gif{" +
         "width:" + gw + "px !important;height:" + gh + "px !important;" +
@@ -290,36 +277,50 @@
     if (spinCss.length) css += spinCss.join("");
     st.textContent = css;
 
-    // 动态维护（v1.5.1）：对每个 svg.animate-spin——
-    //   HTML 父级存在 → 父级内联 position:relative + isolation:isolate（定位/混合锚点固定），
-    //     img 注入父级（方案 A，支持去底），svg 打 data 标记隐藏
-    //   父级也是 svg / 无 → 不注入，走方案 B 兜底
+    // 动态维护（v1.5.3）：对每个 svg.animate-spin——
+    //   HTML 父级存在 → 父级内联 position:relative（定位锚点），img 注入父级，svg 打 data 标记隐藏
+    //   不设 isolation:isolate（会阻断去底的 mix-blend-mode 混合）
     // observer 回调通过 window.__zcodeSkinSpinSync 间接调用，永远拿到最新闭包（修换 GIF 失效）。
     window.__zcodeSkinSpinSync = function () {
       var GIF_URL = c.enabled && c.spinnerGif ? toFileUrl(c.spinnerGif) : "";
+
+      // 第一步：清理「孤儿 img」——宿主 svg.animate-spin 已不存在时立即删除。
+      // 关键修复：任务状态 running→error 时 React 会移除 svg（转圈）改渲染红点，
+      // 但手动注入的 img 是 React 不感知的节点，不会被一并移除 → 残留 GIF 与红点叠加。
+      // 故以 img 为锚点反查宿主 svg，宿主消失了就清掉 img。
+      var imgs = document.querySelectorAll("img.zcode-skin-gif");
+      for (var k = 0; k < imgs.length; k++) {
+        var im = imgs[k];
+        var pp = im.parentElement;
+        var host = pp && pp.namespaceURI === "http://www.w3.org/1999/xhtml" ? pp.querySelector(":scope > svg.animate-spin") : null;
+        if (!host || !GIF_URL) {
+          im.remove();
+          if (pp) { pp.style.position = ""; pp.style.isolation = ""; }
+        }
+      }
+
+      // 第二步：遍历 svg.animate-spin，排除黑名单后一律替换（覆盖侧栏任务、主窗口运行态、任务时间线等）
       var spins = document.querySelectorAll("svg.animate-spin");
       for (var i = 0; i < spins.length; i++) {
         var svg = spins[i];
-        if (svg.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn') ||
-            !svg.closest("#sidebar, .history-message, [data-history-open]")) {
+        // 黑名单排除：
+        //   设置对话框（子智能体编辑页的思考强度开关等，v1.4.6 教训）
+        //   皮肤面板/按钮自身
+        //   data-zcode-chat-loading-animate —— 聊天「生成/发送/重试」的通用加载动画（pZe 组件，非任务状态图标）
+        if (svg.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn, [data-zcode-chat-loading-animate]')) {
           if (svg.hasAttribute("data-zcode-skin-host")) svg.removeAttribute("data-zcode-skin-host");
           continue;
         }
         var p = svg.parentElement;
         var okHost = p && p.namespaceURI === "http://www.w3.org/1999/xhtml";
         if (!GIF_URL) {
-          if (okHost) {
-            var old = p.querySelector(":scope > img.zcode-skin-gif");
-            if (old) old.remove();
-            p.style.position = "";
-            p.style.isolation = "";
-          }
           if (svg.hasAttribute("data-zcode-skin-host")) svg.removeAttribute("data-zcode-skin-host");
           continue;
         }
         if (!okHost) continue; // 裸 svg → 方案 B 兜底
+        // 只设 position:relative 作定位锚点；不设 isolation:isolate——
+        // isolation 会创建隔离组，阻断 img 的 mix-blend-mode 向上与条目背景混合，反而使去底失效
         if (p.style.position !== "relative") p.style.position = "relative";
-        if (p.style.isolation !== "isolate") p.style.isolation = "isolate";
         var img = p.querySelector(":scope > img.zcode-skin-gif");
         if (!img) {
           img = document.createElement("img");
