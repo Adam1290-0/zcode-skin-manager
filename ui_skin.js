@@ -339,7 +339,11 @@
       var spins = document.querySelectorAll("svg.animate-spin");
       for (var i = 0; i < spins.length; i++) {
         var svg = spins[i];
-        var excluded = svg.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn, [data-zcode-chat-loading-animate]');
+        // 黑名单只保留真正不该替换的：设置对话框（思考强度开关等）、皮肤面板/按钮自身。
+        // 不再排除 [data-zcode-chat-loading-animate]——那是聊天主窗口「AI 生成回答时的运行态转圈」
+        // （pZe 组件），用户要它随 GIF 一起替换。当年为修「发送时闪现」误加了它，而那个 bug 的
+        // 根因是 img 注入方案的 timing 错位，v1.6.0 回归 background 方案后已根治。
+        var excluded = svg.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn');
         if (!enabled || excluded) {
           if (svg.hasAttribute("data-zcode-skin-host")) svg.removeAttribute("data-zcode-skin-host");
         } else {
