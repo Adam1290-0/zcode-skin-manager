@@ -31,6 +31,11 @@
     spinnerGifOffX: 0,
     spinnerGifOffY: 0,
     _gifV2: true,
+    statusError: "",
+    statusUnread: "",
+    statusIdle: "",
+    statusSuccess: "",
+    statusFailPulse: false,
     opacities: {
       backgroundWinAlt: 0.35,
       background: 0.45,
@@ -267,6 +272,23 @@
       );
     }
     if (spinCss.length) css += spinCss.join("");
+
+    // 状态指示渲染：任务/会话列表的失败红点、未读蓝点、空闲灰点、完成绿对勾。
+    // 失败/完成通过覆盖 ZCode 语义色变量（--color-destructive / --color-success），
+    // 这样红点、X 图标、所有错误态 / 对勾、成功态一起统一改色；未读/空调用精确 data 锚点。
+    var statusCss = [];
+    if (c.statusError) statusCss.push(".theme-zai-dark{--color-destructive:" + c.statusError + "}");
+    if (c.statusUnread) statusCss.push("[data-unread-indicator]{background-color:" + c.statusUnread + " !important}");
+    if (c.statusIdle) statusCss.push("[data-idle-indicator]{background-color:" + c.statusIdle + " !important}");
+    if (c.statusSuccess) statusCss.push(".theme-zai-dark{--color-success:" + c.statusSuccess + "}");
+    if (c.statusFailPulse) {
+      statusCss.push(
+        "@keyframes zc-fail-pulse{0%{box-shadow:0 0 0 0 rgba(255,80,80,.9)}100%{box-shadow:0 0 0 7px rgba(255,80,80,0)}}" +
+        "[data-error-indicator]{animation:zc-fail-pulse 1.4s ease-out infinite !important}"
+      );
+    }
+    if (statusCss.length) css += statusCss.join("");
+
     st.textContent = css;
 
     // 打标（轻量，无节点注入）：给「应替换」的 svg.animate-spin 打 data-zcode-skin-host，
@@ -851,6 +873,23 @@
     spinPreviewWrap.appendChild(pv1);
     spinPreviewWrap.appendChild(el("span", "color:#888;font-size:11px", "(与侧栏实际效果同步)"));
     panel.appendChild(spinPreviewWrap);
+
+    // 状态指示渲染分组
+    var statusSub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "状态指示（红点/蓝点/对勾）");
+    panel.appendChild(statusSub);
+    panel.appendChild(textField("失败颜色（留空=默认红）", c.statusError, function (v) { c.statusError = v; refreshAll(c); }, "#ff5f57 或 rgba(...)", false));
+    panel.appendChild(textField("未读颜色（留空=默认蓝）", c.statusUnread, function (v) { c.statusUnread = v; refreshAll(c); }, "#38bdf8", false));
+    panel.appendChild(textField("空闲颜色（留空=默认灰）", c.statusIdle, function (v) { c.statusIdle = v; refreshAll(c); }, "#9ca3af", false));
+    panel.appendChild(textField("完成颜色（留空=默认绿）", c.statusSuccess, function (v) { c.statusSuccess = v; refreshAll(c); }, "#46bf72", false));
+    var pulseRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
+    var pulseCb = document.createElement("input");
+    pulseCb.type = "checkbox";
+    pulseCb.checked = !!c.statusFailPulse;
+    pulseCb.style.cssText = "accent-color:#38bdf8";
+    pulseCb.addEventListener("change", function () { c.statusFailPulse = pulseCb.checked; refreshAll(c); });
+    pulseRow.appendChild(pulseCb);
+    pulseRow.appendChild(el("span", "color:#ccc;font-size:12px", "失败红点呼吸光晕"));
+    panel.appendChild(pulseRow);
 
     // 分区透明度
     var o = c.opacities || {};
