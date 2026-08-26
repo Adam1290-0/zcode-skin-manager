@@ -36,6 +36,12 @@
     statusIdle: "",
     statusSuccess: "",
     statusFailPulse: false,
+    uiFontSize: 0,
+    scrollbarWidth: 0,
+    accentColor: "",
+    cursorColor: "",
+    cursorBlink: false,
+    radiusScale: 100,
     opacities: {
       backgroundWinAlt: 0.35,
       background: 0.45,
@@ -288,6 +294,41 @@
       );
     }
     if (statusCss.length) css += statusCss.join("");
+
+    // 外观定制：字号 / 滚动条 / 主题色 / 终端光标 / 圆角缩放（全部纯 CSS 变量覆盖）
+    var lookCss = [];
+    if (c.uiFontSize > 0) lookCss.push(".theme-zai-dark{--ui-font-size:" + c.uiFontSize + "px}");
+    if (c.scrollbarWidth > 0) {
+      lookCss.push(
+        "::-webkit-scrollbar{width:" + c.scrollbarWidth + "px !important;height:" + c.scrollbarWidth + "px !important}" +
+        "::-webkit-scrollbar-thumb{border-radius:9999px !important;background:var(--color-border) !important}" +
+        "::-webkit-scrollbar-track{background:transparent !important}"
+      );
+    }
+    if (c.accentColor) {
+      lookCss.push(".theme-zai-dark{--color-primary:" + c.accentColor + ";--color-brand:" + c.accentColor + "}");
+    }
+    if (c.cursorColor) lookCss.push(".theme-zai-dark{--color-terminal-cursor:" + c.cursorColor + "}");
+    if (c.cursorBlink) {
+      lookCss.push(
+        "@keyframes zc-cursor-blink{0%,49%{opacity:1}50%,100%{opacity:0}}" +
+        ".terminal-xterm-shell .xterm-cursor-layer,.terminal-xterm-shell .xterm-screen canvas.xterm-cursor-canvas{animation:zc-cursor-blink 1s step-end infinite !important}"
+      );
+    }
+    if (c.radiusScale !== 100) {
+      var rs = Math.max(0, Math.min(300, Number(c.radiusScale) || 100)) / 100;
+      lookCss.push(
+        ".theme-zai-dark{" +
+        "--radius-xs:" + (2 * rs).toFixed(1) + "px;" +
+        "--radius-sm:" + (4 * rs).toFixed(1) + "px;" +
+        "--radius-md:" + (6 * rs).toFixed(1) + "px;" +
+        "--radius-lg:" + (8 * rs).toFixed(1) + "px;" +
+        "--radius-xl:" + (12 * rs).toFixed(1) + "px;" +
+        "--radius-2xl:" + (16 * rs).toFixed(1) + "px;" +
+        "--radius-3xl:" + (24 * rs).toFixed(1) + "px}"
+      );
+    }
+    if (lookCss.length) css += lookCss.join("");
 
     st.textContent = css;
 
@@ -950,6 +991,84 @@
     pulseRow.appendChild(pulseCb);
     pulseRow.appendChild(el("span", "color:#ccc;font-size:12px", "失败红点呼吸光晕"));
     panel.appendChild(pulseRow);
+
+    // 外观定制分组：字号/滚动条/主题色/光标/圆角
+    var lookSub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "外观（字号/滚动条/主题色）");
+    panel.appendChild(lookSub);
+    // 字号 + 圆角一行两列
+    var fontRadiusRow = el("div", "display:flex;gap:8px;margin-bottom:8px");
+    function miniNumG(val, onChange, step, minV, maxV, unit, title) {
+      var wrap = el("div", "flex:1;min-width:0;display:flex;align-items:center;gap:3px");
+      var inp = document.createElement("input");
+      inp.type = "number";
+      inp.value = val;
+      inp.step = step;
+      inp.min = minV;
+      inp.max = maxV;
+      inp.title = title || "";
+      inp.style.cssText = "flex:1;min-width:0;width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:5px;padding:3px 4px;color:#eee;font-size:11px";
+      inp.addEventListener("change", function () {
+        var v = Number(inp.value);
+        if (isNaN(v)) { inp.value = val; return; }
+        v = Math.max(minV, Math.min(maxV, v));
+        inp.value = v;
+        onChange(v);
+      });
+      wrap.appendChild(inp);
+      wrap.appendChild(el("span", "flex:0 0 auto;color:#888;font-size:10px", unit));
+      return wrap;
+    }
+    var cellFont = el("div", "flex:1;min-width:0");
+    cellFont.appendChild(el("div", "color:#999;font-size:10px;margin-bottom:2px", "界面字号(0=默认)"));
+    cellFont.appendChild(miniNumG(c.uiFontSize, function (v) { c.uiFontSize = v; refreshAll(c); }, 1, 0, 24, "px", "全局界面字号，0=用 ZCode 默认 14px"));
+    fontRadiusRow.appendChild(cellFont);
+    var cellRadius = el("div", "flex:1;min-width:0");
+    cellRadius.appendChild(el("div", "color:#999;font-size:10px;margin-bottom:2px", "圆角缩放%"));
+    cellRadius.appendChild(miniNumG(c.radiusScale, function (v) { c.radiusScale = v; refreshAll(c); }, 10, 0, 300, "%", "卡片/面板圆角统一缩放，100=默认"));
+    fontRadiusRow.appendChild(cellRadius);
+    panel.appendChild(fontRadiusRow);
+    // 滚动条 + 光标一行两列
+    var scrollCursorRow = el("div", "display:flex;gap:8px;margin-bottom:8px");
+    var cellScroll = el("div", "flex:1;min-width:0");
+    cellScroll.appendChild(el("div", "color:#999;font-size:10px;margin-bottom:2px", "滚动条宽(0=默认)"));
+    cellScroll.appendChild(miniNumG(c.scrollbarWidth, function (v) { c.scrollbarWidth = v; refreshAll(c); }, 1, 0, 20, "px", "滚动条宽度，0=用 ZCode 默认 14px"));
+    scrollCursorRow.appendChild(cellScroll);
+    var cellCursor = el("div", "flex:1;min-width:0");
+    cellCursor.appendChild(el("div", "color:#999;font-size:10px;margin-bottom:2px", "光标闪烁"));
+    var blinkWrap = el("div", "display:flex;align-items:center;gap:6px;height:24px");
+    var blinkCb = document.createElement("input");
+    blinkCb.type = "checkbox";
+    blinkCb.checked = !!c.cursorBlink;
+    blinkCb.style.cssText = "accent-color:#38bdf8";
+    blinkCb.addEventListener("change", function () { c.cursorBlink = blinkCb.checked; refreshAll(c); });
+    blinkWrap.appendChild(blinkCb);
+    blinkWrap.appendChild(el("span", "color:#888;font-size:10px", "终端光标闪烁"));
+    cellCursor.appendChild(blinkWrap);
+    scrollCursorRow.appendChild(cellCursor);
+    panel.appendChild(scrollCursorRow);
+    // 主题色 + 光标颜色一行两列（取色器 + ↺）
+    var colorRow2 = el("div", "display:flex;gap:8px;margin-bottom:8px");
+    function lookColor(label, val, defColor, onChange) {
+      var cell = el("div", "flex:1;min-width:0");
+      cell.appendChild(el("div", "color:#999;font-size:10px;margin-bottom:2px", label));
+      var r = el("div", "display:flex;align-items:center;gap:5px");
+      var pick = document.createElement("input");
+      pick.type = "color";
+      pick.value = val || defColor;
+      pick.title = val ? "当前自定义：" + val : "当前默认（点击修改）";
+      pick.style.cssText = "width:26px;height:22px;padding:0;border:1px solid rgba(255,255,255,.2);border-radius:5px;background:transparent;cursor:pointer;flex:0 0 auto";
+      pick.addEventListener("input", function () { onChange(pick.value); });
+      r.appendChild(pick);
+      var rst = mkBtn("↺", "恢复默认");
+      rst.style.cssText += ";padding:2px 6px;font-size:11px;flex:0 0 auto";
+      rst.onclick = function () { onChange(""); buildPanel(panel, c); };
+      r.appendChild(rst);
+      cell.appendChild(r);
+      return cell;
+    }
+    colorRow2.appendChild(lookColor("主题色", c.accentColor, "#ffffff", function (v) { c.accentColor = v; refreshAll(c); }));
+    colorRow2.appendChild(lookColor("光标色", c.cursorColor, "#f8f8f8", function (v) { c.cursorColor = v; refreshAll(c); }));
+    panel.appendChild(colorRow2);
 
     // 分区透明度
     var o = c.opacities || {};
