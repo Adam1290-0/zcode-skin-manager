@@ -270,6 +270,9 @@
         "animation:none !important;border-radius:0 !important;border:0 !important;" +
         "width:" + gw + "px !important;height:" + gh + "px !important;" +
         "max-width:none !important;max-height:none !important;min-width:0 !important;min-height:0 !important;" +
+        // flex-shrink:0 关键：ZCode 的 spinner 往往包在固定 size-4 的 flex 容器里，svg 作为 flex 子项
+        // 默认 flex-shrink:1 会被压缩回容器尺寸，导致放大后的 GIF 显示被压缩（如聊天输入栏上方 pZe）。
+        "flex:0 0 auto !important;" +
         "position:relative !important;left:" + offX + "px !important;top:" + offY + "px !important;" +
         "background:center / 100% 100% no-repeat url(\"" + toFileUrl(c.spinnerGif).replace(/"/g, "%22") + "\") !important;" +
         blendCss +
