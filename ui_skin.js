@@ -1325,6 +1325,15 @@
     applyImgs(cfg);
     applyEffect(cfg);
     initUI(cfg);
+    // 定时兜底：ZCode 的 React 渲染是异步的，observer 可能因时序漏触发（例如初次渲染
+    // 发生在 observer 创建之前、或 rAF 节流吞掉了关键批次）。延迟重跑 sync 确保打标到位。
+    if (window.__zcodeSkinSpinSync) {
+      [800, 2000, 5000].forEach(function (ms) {
+        setTimeout(function () {
+          if (window.__zcodeSkinSpinSync) window.__zcodeSkinSpinSync();
+        }, ms);
+      });
+    }
   }
 
   if (document.body) boot();

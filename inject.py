@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """把 ui_skin.js 注入到解包后的 index.html（在 </body> 前插入 <script>）。"""
+import re
 import sys
 from pathlib import Path
 
@@ -20,9 +21,14 @@ def main() -> None:
     js = js_path.read_text(encoding="utf-8")
 
     marker = '<script id="zcode-skin-ui">'
-    if marker in html:
-        print("[!] 检测到已有注入，跳过（先 unpatch 再 patch）")
-        sys.exit(2)
+    # 幂等：如果已注入旧版本，先删除旧的整个 <script id="zcode-skin-ui">…</script> 块，
+    # 再注入新版本。这样「从当前 asar 解包重打」时既能更新脚本，又不会重复注入，
+    # 也不会因为检测到旧标记而报错（与 zcode-account-switcher 的幂等注入保持一致，两补丁可共存）。
+    # 注：ui_skin.js 内部不含 "</script>" 字面量，故用非贪婪匹配到第一个 </script> 是安全的。
+    old_tag_re = r'<script id="zcode-skin-ui">.*?</script>\n?'
+    if re.search(old_tag_re, html, flags=re.S):
+        html = re.sub(old_tag_re, '', html, flags=re.S)
+        print("[!] 检测到旧注入，已替换为新版本")
 
     if "</body>" not in html:
         print("[ERROR] index.html 未找到 </body>，放弃")
