@@ -338,17 +338,31 @@
     // 打标（轻量，无节点注入）：给「应替换」的 svg.animate-spin 打 data-zcode-skin-host，
     // CSS 据此显示 GIF。React 复用节点时标记自动保留、销毁时 observer 重新打标。
     // v1.8.5 从「黑名单排除」改为「白名单精确匹配」——ZCode 3.10.1 共 149 处 animate-spin，
-    // 其中 97+ 处是按钮/表单 loading（发送/刷新/保存等临时操作反馈），黑名单方案会把这些
-    // 全部误替换成 GIF（"覆盖过头"）。真正该替换的「任务运行态」只有两类：
+    // 其中 97+ 处是按钮/表单 loading，黑名单方案会把它们全部误替换（"覆盖过头"）。
+    // 真正该替换的「任务运行态」：
     //   ① AI 生成回答时的运行指示（data-zcode-chat-loading-animate，hQe 组件）
-    //   ② 任务/会话条目的「正在处理」状态图标（.transition-opacity 图标槽位，t/sgt 组件）
+    //   ② 任务/会话条目的「正在处理」状态图标——识别特征：svg 的父级或祖父级是
+    //     「relative + shrink-0 + size-4」图标槽位（ght 会话条目直接父级；bvt/t 任务条目祖父级）。
+    //     该三词组合在 3.10.1 全量扫描中精确命中 5 处任务运行态、0 误伤。
+    function isIconSlotClass(cls) {
+      if (!cls) return false;
+      if (typeof cls !== "string") cls = cls.baseVal || ""; // SVG className 是 SVGAnimatedString
+      return cls.indexOf("relative") >= 0 && cls.indexOf("shrink-0") >= 0 && cls.indexOf("size-4") >= 0;
+    }
+    function inTaskSlot(svg) {
+      var p = svg.parentElement;
+      if (!p) return false;
+      if (isIconSlotClass(p.className)) return true;   // 会话条目：svg 直接在槽位里
+      var gp = p.parentElement;
+      return !!gp && isIconSlotClass(gp.className);    // 任务条目：svg 在 transition-opacity 内层
+    }
     window.__zcodeSkinSpinSync = function () {
       var enabled = !!c.enabled && !!c.spinnerGif;
       var spins = document.querySelectorAll("svg.animate-spin");
       for (var i = 0; i < spins.length; i++) {
         var svg = spins[i];
-        // 白名单：只替换这两类任务运行态，其余（按钮/表单 loading）一律保持原生转圈
-        var included = svg.closest('[data-zcode-chat-loading-animate], .transition-opacity');
+        // 白名单：AI 生成态 + 图标槽位里的任务运行态；其余（按钮/表单 loading）保持原生
+        var included = svg.closest('[data-zcode-chat-loading-animate]') || inTaskSlot(svg);
         if (!enabled || !included) {
           if (svg.hasAttribute("data-zcode-skin-host")) svg.removeAttribute("data-zcode-skin-host");
         } else {

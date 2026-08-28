@@ -7,8 +7,8 @@ echo ZCode Skin Patcher
 echo ============================================
 echo.
 
-:: Check if ZCode is running
-tasklist /FI "IMAGENAME eq ZCode.exe" 2>nul | find /I "ZCode.exe" >nul
+:: Check if ZCode is running (use findstr, not find, to avoid Unix-find shadowing)
+tasklist /FI "IMAGENAME eq ZCode.exe" 2>nul | findstr /I /C:"ZCode.exe" >nul
 if %errorlevel% equ 0 (
     echo [ERROR] ZCode is still running!
     echo Please close ZCode completely and try again.
@@ -56,11 +56,12 @@ if not exist "%BACKUP_UNPACKED%" (
     )
 )
 
-:: Extract asar (always from the ORIGINAL backup, so re-patching works)
-echo [2/4] Extracting asar from backup (this may take 2-3 minutes)...
+:: Extract from the CURRENT asar (not the backup) so other injections
+:: (e.g. zcode-account-switcher) already present are preserved.
+echo [2/4] Extracting current asar (this may take 2-3 minutes)...
 set EXTRACT_DIR=%TEMP%\zcode-skin-patch
 if exist "%EXTRACT_DIR%" rmdir /S /Q "%EXTRACT_DIR%" 2>nul
-call npx --yes @electron/asar extract "%BACKUP_PATH%" "%EXTRACT_DIR%"
+call npx --yes @electron/asar extract "%ASAR_PATH%" "%EXTRACT_DIR%"
 if !errorlevel! neq 0 (
     echo [ERROR] Extraction failed
     pause
