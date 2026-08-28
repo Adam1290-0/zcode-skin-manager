@@ -14,7 +14,7 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 
 | 补丁版本 | 适配 ZCode 版本 | 状态 | 主要变化 |
 |---|---|---|---|
-| **v1.8.2（最新）** | **3.7.6 / 3.8.1 / 3.9.1 / 3.9.2** | ✅ 当前维护版本 | 验证适配 ZCode 3.9.2 |
+| **v1.8.4（最新）** | **3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1** | ✅ 当前维护版本 | 验证适配 ZCode 3.10.1 |
 | v1.8.0 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | 新增界面字号、滚动条样式、主题色、终端光标、全局圆角缩放 |
 | v1.7.2 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | 修复视频壁纸重建、spinner 观察器节流、特效监听器泄漏 |
 | v1.7.1 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | UI 紧凑化：GIF 控件一行、状态色改原生取色器、预览去偏移 |
@@ -199,6 +199,14 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 - 加载圈是 lucide SVG + `.animate-spin` + `currentColor`，因此可整体替换为 GIF
 
 ### 更新日志 / Changelog
+
+### v1.8.4
+
+- 🆙 验证适配 ZCode 3.10.1（注入点/CSS 变量/spinner/状态点/selectFile 全部未变，隔离注入通过）
+
+### v1.8.3
+
+- 🐛 修复 spinner GIF 在 flex 容器中被压缩（加 flex:0 0 auto）
 
 ### v1.8.2
 
