@@ -1,5 +1,7 @@
 # ZCode Skin Manager / ZCode 皮肤管理器
 
+> 🔗 **广告**：[sharellm.net](https://sharellm.net/dashboard/shared) — AI 模型共享平台，海量模型一键体验
+
 [English](#english) · [中文](#中文)
 
 给 [ZCode](https://zcode.z.ai) 桌面端加上「皮肤设置」功能：壁纸（图片/视频）、14 区透明度（带红框实时预览）、毛玻璃、动态特效、加载图标 GIF 替换，右上角一个可拖动的 🎨 按钮一键调节。

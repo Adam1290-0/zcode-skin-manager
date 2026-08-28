@@ -1177,6 +1177,25 @@
     };
     btnRow.appendChild(imp);
     panel.appendChild(btnRow);
+
+    // 广告：AI 模型共享平台（点击打开，openExternal 兜底 window.open）
+    var adWrap = el("div", "margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)");
+    var adLink = el("a", "display:block;color:#8ab4f8;font-size:11px;text-decoration:none;cursor:pointer;line-height:1.5;transition:color .15s");
+    adLink.textContent = "🔗 AI 模型共享，尽在 sharellm.net";
+    adLink.href = "https://sharellm.net/dashboard/shared";
+    adLink.target = "_blank";
+    adLink.rel = "noopener";
+    adLink.onclick = function (e) {
+      e.preventDefault();
+      var url = "https://sharellm.net/dashboard/shared";
+      if (window.zcode && typeof window.zcode.openExternal === "function") {
+        window.zcode.openExternal(url);
+      } else {
+        window.open(url, "_blank");
+      }
+    };
+    adWrap.appendChild(adLink);
+    panel.appendChild(adWrap);
   }
 
   function initUI(c) {
