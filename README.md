@@ -200,6 +200,10 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 
 ### 更新日志 / Changelog
 
+### v1.8.5
+
+- 🛡️ 修复 GIF 替换「覆盖过头」：从黑名单排除改为白名单精确匹配，只替换 AI 生成态 + 任务条目「正在处理」图标，不再误替换按钮/表单的 loading 转圈
+
 ### v1.8.4
 
 - 🆙 验证适配 ZCode 3.10.1（注入点/CSS 变量/spinner/状态点/selectFile 全部未变，隔离注入通过）

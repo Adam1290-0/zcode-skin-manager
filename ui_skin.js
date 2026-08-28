@@ -336,18 +336,20 @@
     st.textContent = css;
 
     // 打标（轻量，无节点注入）：给「应替换」的 svg.animate-spin 打 data-zcode-skin-host，
-    // CSS 据此显示 GIF。黑名单内的去掉标记。React 复用节点时标记自动保留、销毁时 observer 重新打标。
+    // CSS 据此显示 GIF。React 复用节点时标记自动保留、销毁时 observer 重新打标。
+    // v1.8.5 从「黑名单排除」改为「白名单精确匹配」——ZCode 3.10.1 共 149 处 animate-spin，
+    // 其中 97+ 处是按钮/表单 loading（发送/刷新/保存等临时操作反馈），黑名单方案会把这些
+    // 全部误替换成 GIF（"覆盖过头"）。真正该替换的「任务运行态」只有两类：
+    //   ① AI 生成回答时的运行指示（data-zcode-chat-loading-animate，hQe 组件）
+    //   ② 任务/会话条目的「正在处理」状态图标（.transition-opacity 图标槽位，t/sgt 组件）
     window.__zcodeSkinSpinSync = function () {
       var enabled = !!c.enabled && !!c.spinnerGif;
       var spins = document.querySelectorAll("svg.animate-spin");
       for (var i = 0; i < spins.length; i++) {
         var svg = spins[i];
-        // 黑名单只保留真正不该替换的：设置对话框（思考强度开关等）、皮肤面板/按钮自身。
-        // 不再排除 [data-zcode-chat-loading-animate]——那是聊天主窗口「AI 生成回答时的运行态转圈」
-        // （pZe 组件），用户要它随 GIF 一起替换。当年为修「发送时闪现」误加了它，而那个 bug 的
-        // 根因是 img 注入方案的 timing 错位，v1.6.0 回归 background 方案后已根治。
-        var excluded = svg.closest('[role="dialog"], #zcode-skin-panel, #zcode-skin-btn');
-        if (!enabled || excluded) {
+        // 白名单：只替换这两类任务运行态，其余（按钮/表单 loading）一律保持原生转圈
+        var included = svg.closest('[data-zcode-chat-loading-animate], .transition-opacity');
+        if (!enabled || !included) {
           if (svg.hasAttribute("data-zcode-skin-host")) svg.removeAttribute("data-zcode-skin-host");
         } else {
           if (!svg.hasAttribute("data-zcode-skin-host")) svg.setAttribute("data-zcode-skin-host", "1");
