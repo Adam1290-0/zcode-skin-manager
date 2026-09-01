@@ -291,9 +291,18 @@
     if (c.statusIdle) statusCss.push("[data-idle-indicator]{background-color:" + c.statusIdle + " !important}");
     if (c.statusSuccess) statusCss.push(".theme-zai-dark{--color-success:" + c.statusSuccess + "}");
     if (c.statusFailPulse) {
+      // 心跳式呼吸光晕：双层 box-shadow 波纹扩散 + 红点自身脉动。
+      // 光晕颜色用 --zc-fail-glow（默认红），跟随自定义失败色更协调。
+      // 旧版单层 7px 扩散在 6px 小圆点+深色 UI 上几乎不可见，是"没效果"的根因。
       statusCss.push(
-        "@keyframes zc-fail-pulse{0%{box-shadow:0 0 0 0 rgba(255,80,80,.9)}100%{box-shadow:0 0 0 7px rgba(255,80,80,0)}}" +
-        "[data-error-indicator]{animation:zc-fail-pulse 1.4s ease-out infinite !important}"
+        ".theme-zai-dark{--zc-fail-glow:rgba(255,80,80,.85)}" +
+        (c.statusError ? ".theme-zai-dark{--zc-fail-glow:" + c.statusError + "}" : "") +
+        "@keyframes zc-fail-pulse{" +
+        "0%{box-shadow:0 0 0 0 var(--zc-fail-glow);transform:scale(1)}" +
+        "55%{box-shadow:0 0 0 7px transparent,0 0 0 13px rgba(255,80,80,.25);transform:scale(1.25)}" +
+        "100%{box-shadow:0 0 0 7px transparent,0 0 0 13px transparent;transform:scale(1)}" +
+        "}" +
+        "[data-error-indicator]{animation:zc-fail-pulse 1.6s ease-in-out infinite !important}"
       );
     }
     if (statusCss.length) css += statusCss.join("");
