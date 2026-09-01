@@ -17,6 +17,8 @@
 
 5. **稳定性**：本补丁依赖 ZCode 未公开的内部 CSS 变量（`--color-*`）和 `window.zcode.selectFile` 等内部 API。ZCode 升级后这些内部结构可能变化，导致补丁失效或界面异常。
 
+6. **与其他补丁共存**：本补丁从当前 app.asar 解包并幂等注入，可与 zcode-account-switcher 等其他 asar 注入补丁共存。但多个补丁同时修改 app.asar 时，冲突排查更复杂；若某补丁异常，先用各自的 unpatch 脚本逐个还原再定位。
+
 ## 安全操作建议
 
 - 打补丁前**务必完全退出 ZCode**（托盘图标右键退出，不是关窗口）

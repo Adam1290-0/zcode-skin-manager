@@ -16,7 +16,9 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 
 | 补丁版本 | 适配 ZCode 版本 | 状态 | 主要变化 |
 |---|---|---|---|
-| **v1.8.8（最新）** | **3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1** | ✅ 当前维护版本 | 修复左侧对话列表运行态图标未被替换 |
+| **v1.8.9（最新）** | **3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1 / 3.10.2** | ✅ 当前维护版本 | 验证适配 ZCode 3.10.2 |
+| v1.8.8 | 3.7.6 ~ 3.10.1 | ✅ | 修复左侧列表运行态图标未替换（黑名单方案回归 + 排除按钮 loading） |
+| v1.8.7 | 3.7.6 ~ 3.10.1 | ✅ | inject.py 幂等（与其他注入补丁共存） |
 | v1.8.0 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | 新增界面字号、滚动条样式、主题色、终端光标、全局圆角缩放 |
 | v1.7.2 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | 修复视频壁纸重建、spinner 观察器节流、特效监听器泄漏 |
 | v1.7.1 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | UI 紧凑化：GIF 控件一行、状态色改原生取色器、预览去偏移 |
@@ -43,14 +45,15 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 - 🔴 **Live region preview**: hovering/dragging a slider draws a pulsing red outline around every UI region it affects — see exactly what you're changing (panel shows a hint if that region isn't currently visible)
 - ⏳ **Loading spinner customization**: replace the spinning "working" indicator with your own GIF —
   - auto-detected aspect ratio (non-square/strip images display fully)
-  - width & height sliders + aspect-ratio lock
-  - position offset sliders (X/Y) for off-center source images
-  - background removal: white-key / black-key / **smart auto-detect** (samples edge pixels; works on gray/purple/tinted backgrounds too)
-  - file picker restricted to `.gif`
+  - scale (20–1000%) / X / Y offset inputs in one row + reset button
+  - background removal: white-key / black-key / **smart auto-detect**
+  - file picker restricted to `.gif`; only task-running indicators are replaced — button loadings stay native
 - 🌫️ Frosted glass (backdrop-filter) + wallpaper blur
 - ✨ Dynamic effects: starfield / snow / aurora gradient
 - 🎬 Video wallpaper: one slider for speed & pause (slide to 0 = pause)
 - 🎭 4 preset themes + export/import config as JSON
+- 🔵 **Status indicator colors**: custom colors for error/unread/idle/success dots (native color pickers), optional pulsing glow on the error dot
+- 🖌️ **Appearance**: UI font size, scrollbar width/rounding, theme color, terminal cursor color + blink, global corner-radius scale
 - 💾 Settings apply instantly and persist in localStorage
 
 ### Install
@@ -128,14 +131,15 @@ Key points:
 - 🔴 **滑块高亮预览**：悬停/拖动滑杆时，受影响的 UI 区域显示脉动红框，直观看到改的是哪里（区域未打开时面板会给出黄色提示）
 - ⏳ **处理中图标定制**：用 GIF 替换侧栏/任务的旋转加载圈——
   - 自动识别宽高比，长条/非正方形 GIF 完整显示不裁剪
-  - 宽度/高度双滑杆 + 锁定长宽比开关
-  - 位置偏移双滑杆（横/纵），修正素材不居中导致的偏移
-  - 底色处理：去白底 / 去黑底 / **智能去底**（自动采样边缘像素判断底色，紫灰等彩色底也适用）
-  - 文件选择限定 .gif 格式
+  - 缩放（20–1000%）/ 偏移X / 偏移Y 一行三列输入框 + 一键复位
+  - 底色处理：去白底 / 去黑底 / **智能去底**（自动采样边缘像素判断底色）
+  - 文件选择限定 .gif 格式；只替换任务运行态图标，按钮 loading 不受影响
 - 🌫️ 毛玻璃（backdrop-filter）+ 壁纸模糊
 - ✨ 动态特效：星空 / 飘雪 / 极光渐变
 - 🎬 视频壁纸：速度与暂停合一滑杆（拉到最左 = 暂停）
 - 🎭 4 套预设主题 + 配置 JSON 导入/导出
+- 🔵 **状态指示染色**：失败红点/未读蓝点/空闲灰点/完成对勾四态自定义颜色（原生取色器），失败红点可加呼吸光晕
+- 🖌️ **外观定制**：界面字号、滚动条宽窄圆角、主题色、终端光标颜色+闪烁、全局圆角缩放
 - 💾 设置实时生效并持久化到 localStorage
 
 ### 安装
@@ -146,6 +150,8 @@ Key points:
 2. 双击 `patch.bat`
 3. 等待出现 `[SUCCESS] Patch completed!`
 4. 重新打开 ZCode → 右上角出现 🎨 按钮
+
+> 💡 **与其他注入补丁共存**：patch 从**当前** app.asar 解包（不是老备份），注入是幂等的——重打本补丁会自动替换旧注入、保留其他补丁（如 zcode-account-switcher）的修改，两个补丁可以任意顺序反复打，互不覆盖。
 
 ### 卸载
 
