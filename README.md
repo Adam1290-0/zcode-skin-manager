@@ -202,6 +202,10 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 
 ### 更新日志 / Changelog
 
+### v1.8.9
+
+- 🆙 验证适配 ZCode 3.10.2（CSS 与 3.10.1 完全一致，JS 关键结构未变，隔离注入通过）
+
 ### v1.8.8
 
 - 🐛 修复左侧对话/任务列表「正在处理」图标未被替换（回到黑名单方案 + 精确排除按钮 loading）
