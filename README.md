@@ -16,7 +16,8 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 
 | 补丁版本 | 适配 ZCode 版本 | 状态 | 主要变化 |
 |---|---|---|---|
-| **v1.8.9（最新）** | **3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1 / 3.10.2** | ✅ 当前维护版本 | 验证适配 ZCode 3.10.2 |
+| **v2.0.0（最新）** | **3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1 / 3.10.2** | ✅ 当前维护版本 | 🌈 输入框氛围灯（Ambient Edge）；移除预设主题占位 |
+| v1.8.9 | 3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1 / 3.10.2 | ✅ | 验证适配 ZCode 3.10.2 |
 | v1.8.8 | 3.7.6 ~ 3.10.1 | ✅ | 修复左侧列表运行态图标未替换（黑名单方案回归 + 排除按钮 loading） |
 | v1.8.7 | 3.7.6 ~ 3.10.1 | ✅ | inject.py 幂等（与其他注入补丁共存） |
 | v1.8.0 | 3.7.6 / 3.8.1 / 3.9.1 | ✅ | 新增界面字号、滚动条样式、主题色、终端光标、全局圆角缩放 |
@@ -51,7 +52,12 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 - 🌫️ Frosted glass (backdrop-filter) + wallpaper blur
 - ✨ Dynamic effects: starfield / snow / aurora gradient
 - 🎬 Video wallpaper: one slider for speed & pause (slide to 0 = pause)
-- 🎭 4 preset themes + export/import config as JSON
+- 🌈 **Input glow (Ambient Edge)**: a soft ambient light track around the chat composer —
+  - 3 presets (Lounge / Aurora / Reactive) + fully custom gradient (2–6 color stops), 8 palette chips
+  - direction (CW / CCW / ping-pong), period 2–60 s, brightness, track width, outer glow blur & intensity, optional hue cycling
+  - state feedback with ▶ preview buttons: focus boost, typing speed-up, blur dimming, send sweep, AI-working flow/breath, done bloom, error pulse — each with its own color & timing
+  - night dimming (time window), custom easing, up to 5 named user presets, honors `prefers-reduced-motion`
+- 🎭 Export/import config as JSON
 - 🔵 **Status indicator colors**: custom colors for error/unread/idle/success dots (native color pickers), optional pulsing glow on the error dot
 - 🖌️ **Appearance**: UI font size, scrollbar width/rounding, theme color, terminal cursor color + blink, global corner-radius scale
 - 💾 Settings apply instantly and persist in localStorage
@@ -81,6 +87,7 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 | Add dynamic effects | Pick starfield/snow/aurora from the 「动态特效」 dropdown |
 | Video wallpaper | Select a `.webm` file — speed slider appears; slide fully left (⏸) to pause |
 | Replace loading spinner | 「替换为 GIF」→ pick a `.gif`; adjust size/ratio/offset/background-removal below it |
+| Input glow | Main panel → 「✨ 输入框氛围灯」：toggle + 「配置…」 opens the full panel (presets, colors, states with ▶ preview, user presets) |
 | Share config | Click 「导出」 to copy JSON; others paste it via 「导入」 |
 
 ### Files
@@ -137,7 +144,12 @@ Key points:
 - 🌫️ 毛玻璃（backdrop-filter）+ 壁纸模糊
 - ✨ 动态特效：星空 / 飘雪 / 极光渐变
 - 🎬 视频壁纸：速度与暂停合一滑杆（拉到最左 = 暂停）
-- 🎭 4 套预设主题 + 配置 JSON 导入/导出
+- 🌈 **输入框氛围灯（Ambient Edge）**：聊天框外圈的柔和环境光轨——
+  - 3 套模式（Lounge 柔和质感 / Aurora 科技感 / Reactive 状态响应）+ 2–6 色标自定义渐变 + 8 个预设配色
+  - 流向（顺时针 / 逆时针 / 往返摆动）、周期 2–60s、亮度、光轨宽度、光晕扩散与强度、可选全谱色相循环
+  - 状态反馈（每项独立开关/颜色/参数，▶ 一键预览）：聚焦增强、输入提速、失焦降亮、发送扫光、生成中流动/呼吸、完成扩散、失败脉冲
+  - 夜间定时降亮、缓动函数自定义、最多 5 个「我的预设」，遵循系统「减少动态」设置
+- 🎭 配置 JSON 导入/导出
 - 🔵 **状态指示染色**：失败红点/未读蓝点/空闲灰点/完成对勾四态自定义颜色（原生取色器），失败红点可加呼吸光晕
 - 🖌️ **外观定制**：界面字号、滚动条宽窄圆角、主题色、终端光标颜色+闪烁、全局圆角缩放
 - 💾 设置实时生效并持久化到 localStorage
@@ -169,6 +181,7 @@ Key points:
 | 加动态特效 | 「动态特效」下拉选星空/飘雪/极光 |
 | 视频壁纸 | 选 `.webm` 文件，出现速度滑杆；拉到最左（⏸）暂停 |
 | 替换加载图标 | 「替换为 GIF」选一个 .gif；下方调尺寸/比例/位置/去底 |
+| 输入框氛围灯 | 主面板「✨ 输入框氛围灯」：开关 + 「配置…」打开独立面板（模式/配色/状态反馈▶预览/我的预设） |
 | 分享配置 | 点「导出」复制 JSON，别人「导入」粘贴 |
 
 ### 文件说明
@@ -197,6 +210,12 @@ A：鼠标按住 🎨 按钮拖动即可，位置按窗口比例记忆，缩放/
 **Q：悬停滑杆没有红框？**
 A：该区域所在窗口可能没打开（如菜单、悬浮提示只在弹出时存在），此时面板会出现黄色提示。终端需要开着终端页签才有红框；「边框」是描边不是色块，无法框选预览。
 
+**Q：氛围灯的发送扫光没触发？**
+A：发送检测监听的是聊天输入框内的 Enter（Shift+Enter 换行不触发）。用鼠标点发送按钮不会触发扫光，属预期。「生成完成/失败」反馈依赖 AI 生成结束后侧栏任务状态，若此前 5 分钟内没有发送过消息则不触发。
+
+**Q：氛围灯找不到输入框？**
+A：光轨自动定位主界面聊天输入框（向上找带圆角边框的容器）。皮肤面板、设置对话框、搜索框内的输入框已被排除。若 ZCode 更新后改了输入框 DOM 结构导致找不到，面板里点 ▶ 预览会提示「未找到」。
+
 ### 原理
 
 ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CSS 变量驱动，内置 `zai-dark`/`zai-light` 主题但无 UI 入口。本工具在 `app.asar` 的 `index.html` 注入脚本，把 `.theme-zai-dark` 的变量覆盖为半透明 + 挂载壁纸层。
@@ -207,6 +226,15 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 - 加载圈是 lucide SVG + `.animate-spin` + `currentColor`，因此可整体替换为 GIF
 
 ### 更新日志 / Changelog
+
+### v2.0.0
+
+- 🌈 全新「输入框氛围灯（Ambient Edge）」：三层光效设计——
+  - 环境光轨：conic 渐变环绕慢流（`@property` 角度插值，GPU 合成不重排），细光芯 + 模糊光晕双层
+  - 状态反馈：聚焦增强 / 输入提速 / 失焦降亮 / 发送扫光 / 生成中（流动·呼吸·静态三模式）/ 完成扩散 / 失败脉冲，全部独立开关+颜色+参数，行内 ▶ 预览
+  - 独立二级面板：3 套模式、8 个预设配色、2–6 色标自定义渐变、流向/周期/亮度/光轨宽/光晕、夜间定时降亮、缓动、最多 5 个「我的预设」
+  - 遵循 `prefers-reduced-motion`（减少动态时冻结为静态渐变）
+- 🗑️ 移除「预设主题」占位功能（用户确认无实际价值，面板空间让位给氛围灯）
 
 ### v1.8.9
 
