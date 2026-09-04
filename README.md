@@ -16,7 +16,8 @@ Give the [ZCode](https://zcode.z.ai) desktop app a "skin" feature: wallpaper (im
 
 | 补丁版本 | 适配 ZCode 版本 | 状态 | 主要变化 |
 |---|---|---|---|
-| **v2.0.0（最新）** | **3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1 / 3.10.2** | ✅ 当前维护版本 | 🌈 输入框氛围灯（Ambient Edge）；移除预设主题占位 |
+| **v2.0.1（最新）** | **3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1 / 3.10.2** | ✅ 当前维护版本 | 🐛 氛围灯导电到真实宿主（Slate contenteditable vs textarea）；修输入框被光晕覆盖无法输入；修二级面板飞左上角 |
+| v2.0.0 | 3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1 / 3.10.2 | ⚠️ 有严重回归 | 氛围灯初版（宿主选择器错误），用 v2.0.1+ |
 | v1.8.9 | 3.7.6 / 3.8.1 / 3.9.1 / 3.9.2 / 3.10.1 / 3.10.2 | ✅ | 验证适配 ZCode 3.10.2 |
 | v1.8.8 | 3.7.6 ~ 3.10.1 | ✅ | 修复左侧列表运行态图标未替换（黑名单方案回归 + 排除按钮 loading） |
 | v1.8.7 | 3.7.6 ~ 3.10.1 | ✅ | inject.py 幂等（与其他注入补丁共存） |
@@ -226,6 +227,16 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 - 加载圈是 lucide SVG + `.animate-spin` + `currentColor`，因此可整体替换为 GIF
 
 ### 更新日志 / Changelog
+
+### v2.0.1
+
+- 🐛 **修复氛围灯用户实测严重回归（3 个严重 bug，全部因盲选宿主）**：
+  1. **"没有找到输入框"+ 预览无效**：`findGlowHost` 只查 `textarea`，但 ZCode 聊天框是 Slate.js contenteditable（`data-slate-editor`）——从没找到过宿主
+  2. **输入框被光晕覆盖无法正确输入**：光晕 `::after` 没有做与光芯一致的 `mask` 环形挖空，整块模糊矩形盖在编辑器内容上；修复为给光晕也加 ring mask
+  3. **二级面板重建后跑到左上角 + 无法单独关**：`rebuild()` 重建时用已脱离 DOM 的旧 `anchorBtn` 的 rect（全是 0）；且主面板「✕」关闭不联动二级面板
+  4. `position:relative !important` 改为「只在宿主原 position 是 static 时」JS 补（不动 Slate 本身有定位的容器链）
+- 🎯 氛围灯宿主选择器改为 **代码证据锚点**：`.chat-composer-region .chat-composer-input-surface`（解包 app.asar 证实是聊天主输入框容器）+ `--zc-glow-r` 默认 18px 匹配输入框 rounded-2xl，不再 inherit
+- 🛡️ 面板 `rebuild()` 时若已开则**保持当前位置不再重定位**；主面板 ✕/🎨/outside-click 三种关闭都联动关二级面板
 
 ### v2.0.0
 

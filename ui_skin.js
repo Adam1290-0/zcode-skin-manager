@@ -641,7 +641,11 @@
       "@keyframes zc-glow-send{0%{filter:brightness(1)}25%{filter:brightness(2.4)}100%{filter:brightness(1)}}" +
       "@keyframes zc-glow-bloom{0%{filter:brightness(1)}35%{filter:brightness(1.9)}100%{filter:brightness(1)}}" +
       "@keyframes zc-glow-err{0%,100%{filter:brightness(1)}50%{filter:brightness(2.1)}}" +
-      "." + GLOW_CLASS + "{position:relative !important;" +
+      // 不强制 position:relative——Slate 编辑器内部定位链条对 position 敏感，
+      // 强制覆盖正是 v2.0.0 "输入框无法输入"的根因之一。改用 JS 检测：
+      // 宿主本来没有定位时，才加我们自己的 class（data 驱动，可被 removeGlowHost 完整移除）
+      "." + GLOW_CLASS + "{" +
+      "--zc-glow-r:" + 18 + "px;" +
       "--zc-glow-grad:" + glowGradient(c) + ";" +
       "--zc-glow-t:" + (Number(g.period) || 18) + "s;" +
       "--zc-glow-w:" + (Number(g.trackWidth) || 1.5) + "px;" +
@@ -654,7 +658,9 @@
       "--zc-glow-odur:" + (Number(g.states.send.dur) || 0.8) + "s;" +
       "--zc-glow-en:" + (Number(g.states.error.pulses) || 2) + ";" +
       "}" +
-      "." + GLOW_CLASS + "::before,." + GLOW_CLASS + "::after{content:\"\";position:absolute;pointer-events:none;border-radius:inherit}" +
+      // 伪元素圆角不 inherit（宿主圆角可能为 0）：内层输入框是 rounded-2xl（16px），
+      // 光轨画在宿主外圈 → 18px 与输入框圆角近似贴合
+      "." + GLOW_CLASS + "::before,." + GLOW_CLASS + "::after{content:\"\";position:absolute;pointer-events:none;border-radius:var(--zc-glow-r)}" +
       // 光芯：细环（mask 挖出环形，conic 渐变随角度旋转）
       "." + GLOW_CLASS + "::before{" +
       "inset:calc(var(--zc-glow-w) * -1 - 1px);padding:var(--zc-glow-w);" +
@@ -665,13 +671,20 @@
       "mask-composite:exclude;" +
       "opacity:calc(var(--zc-glow-b)/100);" +
       "animation:" + anim + ";z-index:1}" +
-      // 光晕：外层模糊扩散，亮度跟随光芯
+      // 光晕：外层模糊扩散，亮度跟随光芯。
+      // 关键：必须和光芯一样做 ring mask 只画环形带，否则整张模糊矩形会盖在编辑器内容上
+      // （v2.0.0 就是这么把输入框"糊住"导致用户反馈无法输入）
       "." + GLOW_CLASS + "::after{" +
       "inset:calc(var(--zc-glow-w) * -1 - var(--zc-glow-gblur) - 1px);" +
+      "padding:calc(var(--zc-glow-w) + var(--zc-glow-gblur));" +
       "background:var(--zc-glow-grad);" +
+      "-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);" +
+      "-webkit-mask-composite:xor;" +
+      "mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);" +
+      "mask-composite:exclude;" +
       "filter:blur(var(--zc-glow-gblur));" +
       "opacity:calc(var(--zc-glow-gb)/100*var(--zc-glow-b)/40);" +
-      "animation:" + anim + ";z-index:0}" +
+      "animation:" + anim + ";z-index:-1}" +
       // 聚焦增强 / 失焦降亮
       "." + GLOW_CLASS + "[data-zc-focus]::before{opacity:calc((var(--zc-glow-b) + var(--zc-glow-fb))/100)}" +
       "." + GLOW_CLASS + "[data-zc-focus]::after{opacity:calc(var(--zc-glow-gb)/100*(var(--zc-glow-b) + var(--zc-glow-fb))/40)}" +
@@ -712,33 +725,39 @@
         var prop = style[i];
         if (prop.indexOf("--zc-glow") === 0) style.removeProperty(prop);
       }
+      // position:relative 只有我们给的时候才回滚（不抹掉宿主本身的定位）
+      if (glowHost.getAttribute("data-zc-glow-relpos")) {
+        glowHost.style.removeProperty("position");
+        glowHost.removeAttribute("data-zc-glow-relpos");
+      }
       glowHost = null;
       // 重置 working 状态机：生成中禁用→启用后新 host 才能重新拿到 data-zc-state
       glowWorkingOn = false;
     }
   }
 
-  // 定位聊天主输入框容器：找主区域可见 textarea，向上最多 3 层找有圆角+边框的祖先
+  // 定位聊天主输入框容器。
+  // 证据链（2026-09-04 解包 app.asar + 用户实测红框确认）：
+  //   1. ZCode 聊天输入是 Slate.js contenteditable（不是 textarea）
+  //   2. 骨架：.chat-composer-region > .chat-composer-input-surface > 内层 div.bg-input
+  //      .chat-composer-input-surface = 外层容器（含 p-1.5 按钮条 + input 框 + 发送按钮）
+  //      内层 bg-input = 用户实测红框圈出的盒子（HIGHLIGHT_CLASS.input 锚点 = .bg-input）
+  //   3. **内层 bg-input 有 overflow-hidden**——伪元素 inset 超出会被整圈裁掉 → 光全看不见（问题 2 根因）
+  //      所以宿主必须是**外层** .chat-composer-input-surface（它没 overflow-hidden）
+  //   4. 负 inset 伪元素画在内容区外且 pointer-events:none，绝不遮挡/拦截输入（问题 3 根因已另修 mask）
   function findGlowHost() {
-    var list = document.querySelectorAll("textarea");
-    for (var i = 0; i < list.length; i++) {
-      var t = list[i];
-      if (t.closest("#" + PANEL_ID + ",#" + BTN_ID + ",#" + GLOW_PANEL_ID + ",[role='dialog']")) continue;
-      // xterm 的 helper textarea（隐藏的真实输入元素）不是聊天框
-      if (t.closest(".terminal-xterm-shell,.xterm")) continue;
-      if (t.classList.contains("xterm-helper-textarea")) continue;
-      if (t.offsetParent === null && t !== document.activeElement) continue; // 不可见
-      var best = null, node = t;
-      for (var up = 0; up < 3 && node; up++) {
-        node = node.parentElement;
-        if (!node || node === document.body) break;
-        var cs = getComputedStyle(node);
-        var rad = parseFloat(cs.borderTopLeftRadius) || 0;
-        var bw = parseFloat(cs.borderTopWidth) || 0;
-        if (rad >= 8 && bw > 0) { best = node; break; }
-        if (rad >= 8 && !best) best = node;
-      }
-      return best || t.parentElement;
+    var regions = document.querySelectorAll(".chat-composer-region");
+    for (var i = 0; i < regions.length; i++) {
+      var region = regions[i];
+      // 多实例保护（dock/background 里可能有多个 composer 副本）：选可见的那个
+      if (region.getClientRects().length === 0) continue;
+      // 宿主 = 外层容器（没 overflow-hidden，光不被裁）
+      var surface = region.querySelector(".chat-composer-input-surface");
+      if (surface) return surface;
+      // 兜底：.bg-input 是用户红框实测的盒子（内层）
+      var box = region.querySelector(".bg-input");
+      if (box) return box.parentElement || box;
+      return region;
     }
     return null;
   }
@@ -763,6 +782,11 @@
     if (!host) return;
     glowHost = host;
     if (!host.classList.contains(GLOW_CLASS)) host.classList.add(GLOW_CLASS);
+    // 宿主没有定位时补 position:relative（不强制 !important 覆盖——Slate 内部有自己的布局锚点）
+    if (getComputedStyle(host).position === "static") {
+      host.style.position = "relative";
+      host.setAttribute("data-zc-glow-relpos", "1");
+    }
     applyGlowInlineVars(c);
     // 生成中检测：主区域有运行态 spinner（黑名单同 spinSync）即视为 working
     var working = false;
@@ -1119,7 +1143,12 @@
     var head = el("div", "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px");
     head.appendChild(el("div", "font-weight:600;font-size:14px;color:#fff", "🎨 皮肤设置"));
     var close = mkBtn("✕", "关闭");
-    close.onclick = function () { panel.style.display = "none"; };
+    close.onclick = function () {
+      panel.style.display = "none";
+      // 主面板关闭时联动关闭氛围灯二级面板（避免二级面板残留无法关）
+      var gp = document.getElementById(GLOW_PANEL_ID);
+      if (gp) gp.style.display = "none";
+    };
     head.appendChild(close);
     panel.appendChild(head);
 
@@ -1986,15 +2015,20 @@
     });
     secD.appendChild(chips);
 
-    // 定位到触发按钮附近（复用主面板定位逻辑）
-    var r = anchorBtn.getBoundingClientRect();
-    var pw = 360;
-    var left = r.right + 8;
-    if (left + pw > window.innerWidth - 8) left = r.left - pw - 8;
-    if (left < 8) left = 8;
-    panel.style.left = left + "px";
-    panel.style.top = Math.min(r.top, Math.max(8, window.innerHeight - 80)) + "px";
-    panel.style.right = "auto";
+    // 定位到触发按钮附近。若面板已开着（rebuild 重建内容时），保持原位置不动——
+    // 因为 syncMain() 会重建主面板使 anchorBtn 脱离 DOM，此时 getBoundingClientRect 全是 0，
+    // 面板会被丢到 (8,0) 左上角。
+    var wasOpen = panel.style.display === "block";
+    if (!wasOpen) {
+      var r = anchorBtn.getBoundingClientRect();
+      var pw = 360;
+      var left = r.right + 8;
+      if (left + pw > window.innerWidth - 8) left = r.left - pw - 8;
+      if (left < 8) left = 8;
+      panel.style.left = left + "px";
+      panel.style.top = Math.min(r.top, Math.max(8, window.innerHeight - 80)) + "px";
+      panel.style.right = "auto";
+    }
     panel.style.display = "block";
   }
 
@@ -2098,6 +2132,8 @@
         panel.style.display = "block";
       } else {
         panel.style.display = "none";
+        var gp = document.getElementById(GLOW_PANEL_ID);
+        if (gp) gp.style.display = "none";
       }
     };
     document.addEventListener("click", function (e) {
@@ -2106,6 +2142,7 @@
       if (panel.style.display === "block" && !panel.contains(e.target) && e.target !== btn &&
           !(glowPanel && glowPanel.contains(e.target))) {
         panel.style.display = "none";
+        if (glowPanel) glowPanel.style.display = "none"; // 主面板关闭时联动关闭
       }
     });
   }
