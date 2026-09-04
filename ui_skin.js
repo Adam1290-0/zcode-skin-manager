@@ -49,8 +49,8 @@
       mode: "lounge",
       colors: ["#38D9E8", "#5B8CFF", "#A78BFA"],
       direction: "cw",
-      period: 18,
-      brightness: 12,
+      period: 10,
+      brightness: 18,
       trackWidth: 1.5,
       glowBlur: 10,
       glowOpacity: 35,
@@ -317,20 +317,18 @@
     if (c.statusSuccess) statusCss.push(".theme-zai-dark{--color-success:" + c.statusSuccess + "}");
     if (c.statusFailPulse) {
       // 心跳式呼吸光晕：双层 box-shadow 波纹扩散 + 红点自身脉动。
-      // 光晕颜色用 --zc-fail-glow（默认红），跟随自定义失败色更协调。
-      // 旧版单层 7px 扩散在 6px 小圆点+深色 UI 上几乎不可见，是"没效果"的根因。
-      // v2.0.1+：扩散半径（--zc-fail-size，默认 13px）与半透明强度（--zc-fail-opacity，默认 0.25）
-      // 开放给用户按需调节——越大越醒目，越小越收敛。
+      // 根因修复（v2.0.4）：之前用 CSS 变量 var(--zc-fail-glow) 等在 @keyframes 内引用，
+      // 但关键帧内的 var() 继承自动画目标元素而非 .theme-zai-dark，导致变量为空、动画无效。
+      // 改为直接把颜色/尺寸/透明度内联到 keyframes 字符串里，彻底消除继承依赖。
       var fs = Math.max(4, Math.min(40, Number(c.statusFailSize) || 13));
       var fo = Math.max(0.05, Math.min(0.9, Number(c.statusFailOpacity) || 0.25));
+      var glowColor = c.statusError || "rgba(255,80,80,.85)";
+      var midR = Math.round(fs * 0.55);
       statusCss.push(
-        ".theme-zai-dark{--zc-fail-glow:rgba(255,80,80,.85)}" +
-        (c.statusError ? ".theme-zai-dark{--zc-fail-glow:" + c.statusError + "}" : "") +
-        ".theme-zai-dark{--zc-fail-size:" + fs + "px;--zc-fail-opacity:" + fo + "}" +
         "@keyframes zc-fail-pulse{" +
-        "0%{box-shadow:0 0 0 0 var(--zc-fail-glow);transform:scale(1)}" +
-        "55%{box-shadow:0 0 0 calc(var(--zc-fail-size)*0.55) transparent,0 0 0 var(--zc-fail-size) rgba(255,80,80,var(--zc-fail-opacity));transform:scale(1.25)}" +
-        "100%{box-shadow:0 0 0 calc(var(--zc-fail-size)*0.55) transparent,0 0 0 var(--zc-fail-size) transparent;transform:scale(1)}" +
+        "0%{box-shadow:0 0 0 0 " + glowColor + ";transform:scale(1)}" +
+        "55%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px " + glowColor + ";transform:scale(1.25);opacity:" + fo + "}" +
+        "100%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px transparent;transform:scale(1);opacity:1}" +
         "}" +
         "[data-error-indicator]{animation:zc-fail-pulse 1.6s ease-in-out infinite !important}"
       );
@@ -577,7 +575,7 @@
   ];
 
   var GLOW_MODES = {
-    lounge: { label: "Lounge（柔和质感）", colors: ["#38D9E8", "#5B8CFF", "#A78BFA"], period: 18, brightness: 12, hueCycle: false },
+    lounge: { label: "Lounge（柔和质感）", colors: ["#38D9E8", "#5B8CFF", "#A78BFA"], period: 10, brightness: 18, hueCycle: false },
     aurora: { label: "Aurora（科技感）", colors: ["#34D399", "#22D3EE", "#818CF8"], period: 10, brightness: 18, hueCycle: true, hueRange: 90 },
     reactive: { label: "Reactive（状态响应）", colors: ["#38D9E8", "#5B8CFF", "#A78BFA"], period: 22, brightness: 10, hueCycle: false }
   };
@@ -599,26 +597,40 @@
     return !!(c && c.enabled && c.inputGlow && c.inputGlow.enabled);
   }
 
+  function hexToRgb(hex) {
+    hex = String(hex).replace(/^#/, "");
+    if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    var n = parseInt(hex, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function rgbToHex(r, g, b) {
+    return "#" + ((1 << 24) + (Math.round(r) << 16) + (Math.round(g) << 8) + Math.round(b)).toString(16).slice(1);
+  }
+
+  function mixColors(c1, c2, t) {
+    var a = hexToRgb(c1), b = hexToRgb(c2);
+    return rgbToHex(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
+  }
+
   function glowGradient(c) {
     var g = c.inputGlow;
     var cols = (g.colors || []).filter(Boolean);
     if (!cols.length) cols = GLOW_PALETTE[0].colors;
     if (cols.length === 1) cols = [cols[0], cols[0]];
-    // A+C 视觉升级：在色标之间插入透明过渡段，让 conic 渐变产生"高亮热点"——
-    // 旋转时热点沿轨道流动，而非整圈均匀亮；配合 zc-glow-breathe 动画做整体亮度呼吸，
-    // 模拟灯带藏光的层次感。transparent 段占比由 hotspotPct 控制（默认 40%）。
-    var hotspot = Math.max(0, Math.min(80, Number(g.hotspotPct) || 40));
+    // 在每两个相邻色标之间插入 2 个中间色 stop，保证整圈 360° 始终有足够亮度——
+    // 否则 conic-gradient 在深色 UI 上色标间自动插值会经过很暗的混合色，视觉上像断裂。
+    // 插入中间色后渐变仍然连续平滑，只是不会出现"暗谷"。
     var n = cols.length;
     var segs = [];
     for (var i = 0; i < n; i++) {
-      var startPct = (i / n * 100).toFixed(1);
-      var peakPct = ((i + 0.5) / n * 100).toFixed(1);
-      var endPct = ((i + 1) / n * 100).toFixed(1);
-      segs.push(cols[i] + " " + startPct + "%");
-      segs.push(cols[i] + " " + peakPct + "%");
-      segs.push("transparent " + (parseFloat(peakPct) + hotspot / n / 2).toFixed(1) + "%");
-      segs.push("transparent " + endPct + "%");
+      var next = cols[(i + 1) % n];
+      var cur = cols[i];
+      segs.push(cur + " " + (i / n * 100).toFixed(1) + "%");
+      segs.push(mixColors(cur, next, 0.33) + " " + ((i + 0.33) / n * 100).toFixed(1) + "%");
+      segs.push(mixColors(cur, next, 0.67) + " " + ((i + 0.67) / n * 100).toFixed(1) + "%");
     }
+    segs.push(cols[0] + " 100%");
     return "conic-gradient(from var(--zc-glow-angle)," + segs.join(",") + ")";
   }
 
@@ -1900,11 +1912,13 @@
     secA.appendChild(row("光轨宽度", slider(g.trackWidth, function (v) { g.trackWidth = v; persist(); }, 1, 3, 0.5, function (v) { return v + "px"; })));
     secA.appendChild(row("光晕扩散", slider(g.glowBlur, function (v) { g.glowBlur = v; persist(); }, 0, 24, 1, function (v) { return v + "px"; })));
     secA.appendChild(row("光晕强度", slider(g.glowOpacity, function (v) { g.glowOpacity = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })));
-    // A: 热点占比（conic 渐变中透明段比例，越大流光感越强、连续感越弱）
-    secA.appendChild(row("流光热点", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); }, 0, 80, 5, function (v) { return v + "%"; })));
-    // C: 呼吸动画幅度与周期
-    secA.appendChild(row("呼吸幅度", slider(g.breatheAmp, function (v) { g.breatheAmp = v; persist(); }, 0, 1, 0.05, function (v) { return Math.round(v * 100) + "%"; })));
-    secA.appendChild(row("呼吸周期", slider(g.breathePeriod, function (v) { g.breathePeriod = v; persist(); }, 2, 20, 1, function (v) { return v + "s"; })));
+    // C: 亮度呼吸——整体明暗起伏幅度与周期
+    var breatheRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
+    breatheRow.appendChild(mkCheck(g.breatheAmp > 0, function (v) { g.breatheAmp = v ? 0.3 : 0; persist(); rebuild(); }, "亮度呼吸"));
+    if (g.breatheAmp > 0) {
+      breatheRow.appendChild(slider(g.breathePeriod, function (v) { g.breathePeriod = v; persist(); }, 2, 20, 1, function (v) { return v + "s"; }));
+    }
+    secA.appendChild(breatheRow);
 
     var hueRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
     hueRow.appendChild(mkCheck(g.hueCycle, function (v) { g.hueCycle = v; persist(); rebuild(); }, "全谱色相循环"));
