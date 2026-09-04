@@ -641,7 +641,7 @@
   // 夜间降亮后的实际亮度（0-40）
   function glowEffectiveBrightness(c) {
     var g = c.inputGlow;
-    var b = Math.max(0, Math.min(40, Number(g.brightness) || 12));
+    var b = Math.max(0, Math.min(100, Number(g.brightness) || 12));
     if (g.night && g.night.on && glowInNightWindow(g.night)) {
       b = b * (1 - Math.max(0, Math.min(80, Number(g.night.dim) || 0)) / 100);
     }
@@ -1907,16 +1907,16 @@
       "alt": "往返摆动"
     }, function (v) { g.direction = v; persist(); })));
 
-    secA.appendChild(row("循环周期", slider(g.period, function (v) { g.period = v; persist(); }, 2, 60, 1, function (v) { return v + "s"; })));
-    secA.appendChild(row("亮度", slider(g.brightness, function (v) { g.brightness = v; persist(); }, 0, 40, 1, function (v) { return v + "%"; })));
-    secA.appendChild(row("光轨宽度", slider(g.trackWidth, function (v) { g.trackWidth = v; persist(); }, 1, 3, 0.5, function (v) { return v + "px"; })));
-    secA.appendChild(row("光晕扩散", slider(g.glowBlur, function (v) { g.glowBlur = v; persist(); }, 0, 24, 1, function (v) { return v + "px"; })));
+    secA.appendChild(row("循环周期", slider(g.period, function (v) { g.period = v; persist(); }, 1, 120, 1, function (v) { return v + "s"; })));
+    secA.appendChild(row("亮度", slider(g.brightness, function (v) { g.brightness = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })));
+    secA.appendChild(row("光轨宽度", slider(g.trackWidth, function (v) { g.trackWidth = v; persist(); }, 0.5, 8, 0.5, function (v) { return v + "px"; })));
+    secA.appendChild(row("光晕扩散", slider(g.glowBlur, function (v) { g.glowBlur = v; persist(); }, 0, 60, 1, function (v) { return v + "px"; })));
     secA.appendChild(row("光晕强度", slider(g.glowOpacity, function (v) { g.glowOpacity = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })));
     // C: 亮度呼吸——整体明暗起伏幅度与周期
     var breatheRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
     breatheRow.appendChild(mkCheck(g.breatheAmp > 0, function (v) { g.breatheAmp = v ? 0.3 : 0; persist(); rebuild(); }, "亮度呼吸"));
     if (g.breatheAmp > 0) {
-      breatheRow.appendChild(slider(g.breathePeriod, function (v) { g.breathePeriod = v; persist(); }, 2, 20, 1, function (v) { return v + "s"; }));
+      breatheRow.appendChild(slider(g.breathePeriod, function (v) { g.breathePeriod = v; persist(); }, 1, 30, 1, function (v) { return v + "s"; }));
     }
     secA.appendChild(breatheRow);
 
