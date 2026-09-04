@@ -54,6 +54,9 @@
       trackWidth: 1.5,
       glowBlur: 10,
       glowOpacity: 35,
+      hotspotPct: 40,
+      breatheAmp: 0.3,
+      breathePeriod: 6,
       hueCycle: false,
       hueRange: 60,
       states: {
@@ -601,8 +604,22 @@
     var cols = (g.colors || []).filter(Boolean);
     if (!cols.length) cols = GLOW_PALETTE[0].colors;
     if (cols.length === 1) cols = [cols[0], cols[0]];
-    var stops = cols.concat([cols[0]]).join(",");
-    return "conic-gradient(from var(--zc-glow-angle)," + stops + ")";
+    // A+C 视觉升级：在色标之间插入透明过渡段，让 conic 渐变产生"高亮热点"——
+    // 旋转时热点沿轨道流动，而非整圈均匀亮；配合 zc-glow-breathe 动画做整体亮度呼吸，
+    // 模拟灯带藏光的层次感。transparent 段占比由 hotspotPct 控制（默认 40%）。
+    var hotspot = Math.max(0, Math.min(80, Number(g.hotspotPct) || 40));
+    var n = cols.length;
+    var segs = [];
+    for (var i = 0; i < n; i++) {
+      var startPct = (i / n * 100).toFixed(1);
+      var peakPct = ((i + 0.5) / n * 100).toFixed(1);
+      var endPct = ((i + 1) / n * 100).toFixed(1);
+      segs.push(cols[i] + " " + startPct + "%");
+      segs.push(cols[i] + " " + peakPct + "%");
+      segs.push("transparent " + (parseFloat(peakPct) + hotspot / n / 2).toFixed(1) + "%");
+      segs.push("transparent " + endPct + "%");
+    }
+    return "conic-gradient(from var(--zc-glow-angle)," + segs.join(",") + ")";
   }
 
   function glowStateGradient(color) {
@@ -647,6 +664,8 @@
       "@keyframes zc-glow-spin{0%{--zc-glow-angle:0deg}100%{--zc-glow-angle:360deg}}" +
       "@keyframes zc-glow-spin-rev{0%{--zc-glow-angle:360deg}100%{--zc-glow-angle:0deg}}" +
       "@keyframes zc-glow-breathe{0%,100%{filter:brightness(1)}50%{filter:brightness(1.7)}}" +
+      // C: 整体亮度呼吸动画（独立于 working breath，环境光轨常驻），周期由 --zc-glow-bt 控制
+      "@keyframes zc-glow-ambient-breathe{0%,100%{opacity:calc(var(--zc-glow-b)/100)}50%{opacity:calc(var(--zc-glow-b)/100*var(--zc-glow-ba))}}" +
       "@keyframes zc-glow-send{0%{filter:brightness(1)}25%{filter:brightness(2.4)}100%{filter:brightness(1)}}" +
       "@keyframes zc-glow-bloom{0%{filter:brightness(1)}35%{filter:brightness(1.9)}100%{filter:brightness(1)}}" +
       "@keyframes zc-glow-err{0%,100%{filter:brightness(1)}50%{filter:brightness(2.1)}}" +
@@ -666,6 +685,9 @@
       "--zc-glow-ease:" + (g.easing || "ease-in-out") + ";" +
       "--zc-glow-odur:" + (Number(g.states.send.dur) || 0.8) + "s;" +
       "--zc-glow-en:" + (Number(g.states.error.pulses) || 2) + ";" +
+      // C: 呼吸动画参数（breatheAmp = 峰值亮度倍率，breathePeriod = 呼吸周期）
+      "--zc-glow-ba:" + (1 + (Number(g.breatheAmp) || 0.3)) + ";" +
+      "--zc-glow-bt:" + (Number(g.breathePeriod) || 6) + "s;" +
       "}" +
       // 伪元素圆角不 inherit（宿主圆角可能为 0）：内层输入框是 rounded-2xl（16px），
       // 光轨画在宿主外圈 → 18px 与输入框圆角近似贴合
@@ -679,7 +701,8 @@
       "mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);" +
       "mask-composite:exclude;" +
       "opacity:calc(var(--zc-glow-b)/100);" +
-      "animation:" + anim + ";z-index:1}" +
+      // C: 叠加呼吸动画（与旋转并行），让光轨整体有缓慢明暗起伏
+      "animation:" + anim + ",zc-glow-ambient-breathe var(--zc-glow-bt) ease-in-out infinite;z-index:1}" +
       // 光晕：外层模糊扩散，亮度跟随光芯。
       // 关键：必须和光芯一样做 ring mask 只画环形带，否则整张模糊矩形会盖在编辑器内容上
       // （v2.0.0 就是这么把输入框"糊住"导致用户反馈无法输入）
@@ -693,7 +716,7 @@
       "mask-composite:exclude;" +
       "filter:blur(var(--zc-glow-gblur));" +
       "opacity:calc(var(--zc-glow-gb)/100*var(--zc-glow-b)/40);" +
-      "animation:" + anim + ";z-index:-1}" +
+      "animation:" + anim + ",zc-glow-ambient-breathe var(--zc-glow-bt) ease-in-out infinite;z-index:-1}" +
       // 聚焦增强 / 失焦降亮
       "." + GLOW_CLASS + "[data-zc-focus]::before{opacity:calc((var(--zc-glow-b) + var(--zc-glow-fb))/100)}" +
       "." + GLOW_CLASS + "[data-zc-focus]::after{opacity:calc(var(--zc-glow-gb)/100*(var(--zc-glow-b) + var(--zc-glow-fb))/40)}" +
@@ -1877,6 +1900,11 @@
     secA.appendChild(row("光轨宽度", slider(g.trackWidth, function (v) { g.trackWidth = v; persist(); }, 1, 3, 0.5, function (v) { return v + "px"; })));
     secA.appendChild(row("光晕扩散", slider(g.glowBlur, function (v) { g.glowBlur = v; persist(); }, 0, 24, 1, function (v) { return v + "px"; })));
     secA.appendChild(row("光晕强度", slider(g.glowOpacity, function (v) { g.glowOpacity = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })));
+    // A: 热点占比（conic 渐变中透明段比例，越大流光感越强、连续感越弱）
+    secA.appendChild(row("流光热点", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); }, 0, 80, 5, function (v) { return v + "%"; })));
+    // C: 呼吸动画幅度与周期
+    secA.appendChild(row("呼吸幅度", slider(g.breatheAmp, function (v) { g.breatheAmp = v; persist(); }, 0, 1, 0.05, function (v) { return Math.round(v * 100) + "%"; })));
+    secA.appendChild(row("呼吸周期", slider(g.breathePeriod, function (v) { g.breathePeriod = v; persist(); }, 2, 20, 1, function (v) { return v + "s"; })));
 
     var hueRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
     hueRow.appendChild(mkCheck(g.hueCycle, function (v) { g.hueCycle = v; persist(); rebuild(); }, "全谱色相循环"));
