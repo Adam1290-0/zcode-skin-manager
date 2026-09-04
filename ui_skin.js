@@ -36,6 +36,8 @@
     statusIdle: "",
     statusSuccess: "",
     statusFailPulse: false,
+    statusFailSize: 13,
+    statusFailOpacity: 0.25,
     uiFontSize: 0,
     scrollbarWidth: 0,
     accentColor: "",
@@ -314,13 +316,18 @@
       // 心跳式呼吸光晕：双层 box-shadow 波纹扩散 + 红点自身脉动。
       // 光晕颜色用 --zc-fail-glow（默认红），跟随自定义失败色更协调。
       // 旧版单层 7px 扩散在 6px 小圆点+深色 UI 上几乎不可见，是"没效果"的根因。
+      // v2.0.1+：扩散半径（--zc-fail-size，默认 13px）与半透明强度（--zc-fail-opacity，默认 0.25）
+      // 开放给用户按需调节——越大越醒目，越小越收敛。
+      var fs = Math.max(4, Math.min(40, Number(c.statusFailSize) || 13));
+      var fo = Math.max(0.05, Math.min(0.9, Number(c.statusFailOpacity) || 0.25));
       statusCss.push(
         ".theme-zai-dark{--zc-fail-glow:rgba(255,80,80,.85)}" +
         (c.statusError ? ".theme-zai-dark{--zc-fail-glow:" + c.statusError + "}" : "") +
+        ".theme-zai-dark{--zc-fail-size:" + fs + "px;--zc-fail-opacity:" + fo + "}" +
         "@keyframes zc-fail-pulse{" +
         "0%{box-shadow:0 0 0 0 var(--zc-fail-glow);transform:scale(1)}" +
-        "55%{box-shadow:0 0 0 7px transparent,0 0 0 13px rgba(255,80,80,.25);transform:scale(1.25)}" +
-        "100%{box-shadow:0 0 0 7px transparent,0 0 0 13px transparent;transform:scale(1)}" +
+        "55%{box-shadow:0 0 0 calc(var(--zc-fail-size)*0.55) transparent,0 0 0 var(--zc-fail-size) rgba(255,80,80,var(--zc-fail-opacity));transform:scale(1.25)}" +
+        "100%{box-shadow:0 0 0 calc(var(--zc-fail-size)*0.55) transparent,0 0 0 var(--zc-fail-size) transparent;transform:scale(1)}" +
         "}" +
         "[data-error-indicator]{animation:zc-fail-pulse 1.6s ease-in-out infinite !important}"
       );
@@ -582,6 +589,8 @@
   var glowWorkingOn = false;
   var glowLastSendAt = 0;
   var glowSyncScheduled = false;
+  // 二级面板各折叠区的展开态（跨 rebuild 保留，避免改个颜色用户正在看的区就折叠回去）
+  var glowSecState = {};
 
   function glowEnabled(c) {
     return !!(c && c.enabled && c.inputGlow && c.inputGlow.enabled);
@@ -1145,9 +1154,7 @@
     var close = mkBtn("✕", "关闭");
     close.onclick = function () {
       panel.style.display = "none";
-      // 主面板关闭时联动关闭氛围灯二级面板（避免二级面板残留无法关）
-      var gp = document.getElementById(GLOW_PANEL_ID);
-      if (gp) gp.style.display = "none";
+      // 只关主面板；氛围灯二级面板独立，靠它自己的 ✕ 关闭
     };
     head.appendChild(close);
     panel.appendChild(head);
@@ -1402,10 +1409,15 @@
     pulseCb.type = "checkbox";
     pulseCb.checked = !!c.statusFailPulse;
     pulseCb.style.cssText = "accent-color:#38bdf8";
-    pulseCb.addEventListener("change", function () { c.statusFailPulse = pulseCb.checked; refreshAll(c); });
+    pulseCb.addEventListener("change", function () { c.statusFailPulse = pulseCb.checked; refreshAll(c); buildPanel(panel, c); });
     pulseRow.appendChild(pulseCb);
     pulseRow.appendChild(el("span", "color:#ccc;font-size:12px", "失败红点呼吸光晕"));
     panel.appendChild(pulseRow);
+    // 光晕大小 + 强度两联调（v2.0.X）：控制波纹扩散半径与半透明强度
+    if (c.statusFailPulse) {
+      panel.appendChild(row("光晕大小", slider(c.statusFailSize, function (v) { c.statusFailSize = v; refreshAll(c); }, 6, 40, 1, function (v) { return v + "px"; })));
+      panel.appendChild(row("光晕强度", slider(c.statusFailOpacity, function (v) { c.statusFailOpacity = v; refreshAll(c); }, 0.05, 0.9, 0.05, function (v) { return Math.round(v * 100) + "%"; })));
+    }
 
     // 外观定制分组：字号/滚动条/主题色/光标/圆角
     var lookSub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "外观（字号/滚动条/主题色）");
@@ -1643,6 +1655,8 @@
       panel.id = GLOW_PANEL_ID;
       document.body.appendChild(panel);
     }
+    // 重建前记下滚动位置，重建后还原，避免改个颜色滚动跳回顶部（看起来像菜单重开了）
+    var prevScroll = panel.scrollTop;
     panel.innerHTML = "";
 
     function persist() { save(c); applyGlow(c); }
@@ -1660,18 +1674,20 @@
     head.appendChild(close);
     panel.appendChild(head);
 
-    // 折叠区
+    // 折叠区：用 glowSecState 记住标题→展开态，跨 rebuild 不丢（用户开着的区不会被重置收起）
     function section(title, open) {
+      var isOpen = (glowSecState[title] !== undefined) ? !!glowSecState[title] : !!open;
       var wrap = el("div", "margin-bottom:6px;border:1px solid rgba(255,255,255,.08);border-radius:8px;overflow:hidden");
       var bar = el("div", "display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:rgba(255,255,255,.04);cursor:pointer;user-select:none");
       bar.appendChild(el("span", "color:#ddd;font-size:12px;font-weight:600", title));
-      var arrow = el("span", "color:#888;font-size:11px", open ? "▾" : "▸");
+      var arrow = el("span", "color:#888;font-size:11px", isOpen ? "▾" : "▸");
       bar.appendChild(arrow);
-      var body = el("div", open ? "padding:8px" : "display:none;padding:8px");
+      var body = el("div", isOpen ? "padding:8px" : "display:none;padding:8px");
       bar.onclick = function () {
-        var isOpen = body.style.display !== "none";
-        body.style.display = isOpen ? "none" : "block";
-        arrow.textContent = isOpen ? "▸" : "▾";
+        var o = body.style.display !== "none";
+        body.style.display = o ? "none" : "block";
+        arrow.textContent = o ? "▸" : "▾";
+        glowSecState[title] = !o;
       };
       wrap.appendChild(bar);
       wrap.appendChild(body);
@@ -2026,10 +2042,14 @@
       if (left + pw > window.innerWidth - 8) left = r.left - pw - 8;
       if (left < 8) left = 8;
       panel.style.left = left + "px";
-      panel.style.top = Math.min(r.top, Math.max(8, window.innerHeight - 80)) + "px";
       panel.style.right = "auto";
+      // 动态限高：让面板顶部贴在按钮下方时，底部也绝不超屏（折叠区展开再多都只内部滚动）
+      var top = Math.min(r.top, Math.max(8, window.innerHeight - 120));
+      panel.style.top = top + "px";
+      panel.style.maxHeight = (window.innerHeight - top - 16) + "px";
     }
     panel.style.display = "block";
+    panel.scrollTop = prevScroll;
   }
 
   function initUI(c) {
@@ -2132,17 +2152,15 @@
         panel.style.display = "block";
       } else {
         panel.style.display = "none";
-        var gp = document.getElementById(GLOW_PANEL_ID);
-        if (gp) gp.style.display = "none";
       }
     };
     document.addEventListener("click", function (e) {
-      // 氛围灯二级面板上的点击不算"外部点击"，否则一点二级面板就把主面板关了
+      // 只关主面板自己；二级面板独立管理（靠它自己的 ✕），不再被连带关闭——
+      // 否则点二级面板里的取色器等会间接把主面板和二级面板一起关了，用户又得重开
       var glowPanel = document.getElementById(GLOW_PANEL_ID);
       if (panel.style.display === "block" && !panel.contains(e.target) && e.target !== btn &&
           !(glowPanel && glowPanel.contains(e.target))) {
         panel.style.display = "none";
-        if (glowPanel) glowPanel.style.display = "none"; // 主面板关闭时联动关闭
       }
     });
   }
