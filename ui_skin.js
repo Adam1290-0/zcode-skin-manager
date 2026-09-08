@@ -1922,6 +1922,8 @@
     secA.appendChild(row("光轨宽度", slider(g.trackWidth, function (v) { g.trackWidth = v; persist(); }, 0.5, 8, 0.5, function (v) { return v + "px"; })));
     secA.appendChild(row("光晕扩散", slider(g.glowBlur, function (v) { g.glowBlur = v; persist(); }, 0, 60, 1, function (v) { return v + "px"; })));
     secA.appendChild(row("光晕强度", slider(g.glowOpacity, function (v) { g.glowOpacity = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })));
+    // A: 流动强度——控制灯头与暗谷的对比度，越大流动感越强（默认 40%）
+    secA.appendChild(row("流动强度", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); rebuild(); }, 0, 80, 5, function (v) { return v + "%"; })));
     // 流动强度：灯头与暗谷的对比度，越大"灯环绕框流动"的感觉越明显（0=均匀渐变无流动感）
     secA.appendChild(row("流动强度", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); }, 0, 80, 5, function (v) { return v + "%"; })));
     // C: 亮度呼吸——整体明暗起伏幅度与周期
