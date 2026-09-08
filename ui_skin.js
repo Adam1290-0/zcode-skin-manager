@@ -55,6 +55,7 @@
       glowBlur: 10,
       glowOpacity: 35,
       hotspotPct: 40,
+      cometMode: false,
       breatheAmp: 0.3,
       breathePeriod: 6,
       hueCycle: false,
@@ -630,6 +631,23 @@
     var hotspot = Math.max(0, Math.min(80, Number(g.hotspotPct) || 40));
     var valleyAlpha = 0.45 - hotspot / 100 * 0.4; // 流动强度越大暗谷越暗，对比越强
     var n = cols.length;
+    // 彗星模式：单个亮头 + 渐隐长尾绕框跑（经典跑马灯），其余弧段是低亮度暗轨。
+    // 头在 0%/100% 接缝处，尾巴拖在角度更小侧（100% 方向），图案顺时针旋转时头在前尾在后。
+    if (g.cometMode) {
+      var headC = mixColors(cols[0], "#ffffff", 0.5);
+      var segsC = [
+        headC + " 0%",
+        cols[0] + " 5%",
+        rgbaStr(cols[0], valleyAlpha) + " 13%",
+        rgbaStr(cols[1 % n], valleyAlpha) + " 35%",
+        rgbaStr(cols[2 % n], valleyAlpha) + " 55%",
+        rgbaStr(cols[0], valleyAlpha) + " 72%",
+        cols[0] + " 88%",
+        mixColors(cols[0], "#ffffff", 0.25) + " 95%",
+        headC + " 100%"
+      ];
+      return "conic-gradient(from var(--zc-glow-angle)," + segsC.join(",") + ")";
+    }
     var segs = [];
     for (var i = 0; i < n; i++) {
       var cur = cols[i];
@@ -1924,6 +1942,8 @@
     secA.appendChild(row("光晕强度", slider(g.glowOpacity, function (v) { g.glowOpacity = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })));
     // A: 流动强度——控制灯头与暗谷的对比度，越大流动感越强（默认 40%）
     secA.appendChild(row("流动强度", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); rebuild(); }, 0, 80, 5, function (v) { return v + "%"; })));
+    // 彗星模式：单亮头+渐隐长尾绕框跑（经典跑马灯），替代三灯头流动
+    secA.appendChild(row("彗星模式", mkCheck(g.cometMode, function (v) { g.cometMode = v; persist(); rebuild(); }, "单彗星绕框（拖尾跑马灯）")));
     // 流动强度：灯头与暗谷的对比度，越大"灯环绕框流动"的感觉越明显（0=均匀渐变无流动感）
     secA.appendChild(row("流动强度", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); }, 0, 80, 5, function (v) { return v + "%"; })));
     // C: 亮度呼吸——整体明暗起伏幅度与周期
