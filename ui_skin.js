@@ -613,24 +613,34 @@
     return rgbToHex(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
   }
 
+  function rgbaStr(hex, a) {
+    var c = hexToRgb(hex);
+    return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a.toFixed(2) + ")";
+  }
+
   function glowGradient(c) {
     var g = c.inputGlow;
     var cols = (g.colors || []).filter(Boolean);
     if (!cols.length) cols = GLOW_PALETTE[0].colors;
     if (cols.length === 1) cols = [cols[0], cols[0]];
-    // 在每两个相邻色标之间插入 2 个中间色 stop，保证整圈 360° 始终有足够亮度——
-    // 否则 conic-gradient 在深色 UI 上色标间自动插值会经过很暗的混合色，视觉上像断裂。
-    // 插入中间色后渐变仍然连续平滑，只是不会出现"暗谷"。
+    // 流动感关键：渐变必须亮暗不均——每个色标段中部是高亮"灯头"（混白提亮），
+    // 段界处是暗谷（同色相降 alpha，保持可见，不会像 transparent 那样断裂）。
+    // 旋转时灯头沿框体 orbit，视觉即"光环绕框流动"。
+    // v2.0.4 的均匀中间色插值消除了暗谷，导致只见色相轮换不见流动——本版修正。
+    var hotspot = Math.max(0, Math.min(80, Number(g.hotspotPct) || 40));
+    var valleyAlpha = 0.45 - hotspot / 100 * 0.4; // 流动强度越大暗谷越暗，对比越强
     var n = cols.length;
     var segs = [];
     for (var i = 0; i < n; i++) {
-      var next = cols[(i + 1) % n];
       var cur = cols[i];
-      segs.push(cur + " " + (i / n * 100).toFixed(1) + "%");
-      segs.push(mixColors(cur, next, 0.33) + " " + ((i + 0.33) / n * 100).toFixed(1) + "%");
-      segs.push(mixColors(cur, next, 0.67) + " " + ((i + 0.67) / n * 100).toFixed(1) + "%");
+      var s0 = i / n * 100;
+      var seg = 100 / n;
+      segs.push(rgbaStr(cur, valleyAlpha) + " " + s0.toFixed(1) + "%");
+      segs.push(cur + " " + (s0 + seg * 0.3).toFixed(1) + "%");
+      segs.push(mixColors(cur, "#ffffff", 0.35) + " " + (s0 + seg * 0.5).toFixed(1) + "%");
+      segs.push(cur + " " + (s0 + seg * 0.7).toFixed(1) + "%");
+      segs.push(rgbaStr(cur, valleyAlpha) + " " + (s0 + seg).toFixed(1) + "%");
     }
-    segs.push(cols[0] + " 100%");
     return "conic-gradient(from var(--zc-glow-angle)," + segs.join(",") + ")";
   }
 
@@ -1912,6 +1922,8 @@
     secA.appendChild(row("光轨宽度", slider(g.trackWidth, function (v) { g.trackWidth = v; persist(); }, 0.5, 8, 0.5, function (v) { return v + "px"; })));
     secA.appendChild(row("光晕扩散", slider(g.glowBlur, function (v) { g.glowBlur = v; persist(); }, 0, 60, 1, function (v) { return v + "px"; })));
     secA.appendChild(row("光晕强度", slider(g.glowOpacity, function (v) { g.glowOpacity = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })));
+    // 流动强度：灯头与暗谷的对比度，越大"灯环绕框流动"的感觉越明显（0=均匀渐变无流动感）
+    secA.appendChild(row("流动强度", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); }, 0, 80, 5, function (v) { return v + "%"; })));
     // C: 亮度呼吸——整体明暗起伏幅度与周期
     var breatheRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
     breatheRow.appendChild(mkCheck(g.breatheAmp > 0, function (v) { g.breatheAmp = v ? 0.3 : 0; persist(); rebuild(); }, "亮度呼吸"));
