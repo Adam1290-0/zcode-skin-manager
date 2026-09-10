@@ -319,24 +319,26 @@
     if (c.statusIdle) statusCss.push("[data-idle-indicator]{background-color:" + c.statusIdle + " !important}");
     if (c.statusSuccess) statusCss.push(".theme-zai-dark{--color-success:" + c.statusSuccess + "}");
     if (c.statusFailPulse) {
-      // 心跳式呼吸光晕：双层 box-shadow 波纹扩散 + 红点自身脉动。
-      // v2.0.8 根因：v2.0.4 加的 opacity:fo 关键帧会把整个红点（含实心红背景）也一起淡掉，
-      // 导致红点+光晕一起"消失看似无效"；且 box-shadow 扩散层用了不透明红，成了实心圈。
-      // 修复：去掉 opacity 关键帧；扩散层用半透明 rgba（强度 fo 决定透明度），
-      // 红点仅用 transform:scale 做脉动，光晕从红点边缘波纹式外扩再消散。
+      // 心跳式呼吸光晕：光晕波纹挂在红点的 16px 父级槽位容器上（:has() 选择），红点本体只做 scale 脉动。
+      // 为何挂父级：红点仅 6px（h-1.5），box-shadow 挂 6px 元素上波纹被尺寸压制、深色侧栏上几乎不可见——
+      // 这就是连续几版"没效果"的视觉根因。父级槽位 16px，同样参数的波纹大一圈多。
+      // 兜底：:has() 不支持的老 Chromium 会整条规则失效，红点 scale 脉动仍然可见（不白屏不报错）。
       var fs = Math.max(4, Math.min(40, Number(c.statusFailSize) || 13));
       var fo = Math.max(0.05, Math.min(0.9, Number(c.statusFailOpacity) || 0.25));
       var glow = c.statusError ? rgbaStr(c.statusError, fo) : "rgba(255,80,80," + fo + ")";
       var glowFull = c.statusError ? c.statusError : "rgba(255,80,80,.95)";
       var midR = Math.round(fs * 0.55);
       statusCss.push(
-        "[data-error-indicator]{display:inline-block !important}" +
         "@keyframes zc-fail-pulse{" +
-        "0%{box-shadow:0 0 0 0 " + glowFull + ";transform:scale(1)}" +
-        "55%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px " + glow + ";transform:scale(1.35)}" +
-        "100%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px transparent;transform:scale(1)}" +
+        "0%{box-shadow:0 0 0 0 " + glowFull + "}" +
+        "55%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px " + glow + "}" +
+        "100%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px transparent}" +
         "}" +
-        "[data-error-indicator]{animation:zc-fail-pulse 1.6s ease-in-out infinite !important}"
+        "@keyframes zc-fail-dot{0%,100%{transform:scale(1)}55%{transform:scale(1.5)}}" +
+        // 光晕：挂在包含红点的槽位容器（16px）上
+        "span:has(> [data-error-indicator]){animation:zc-fail-pulse 1.6s ease-in-out infinite !important;border-radius:9999px}" +
+        // 红点本体：scale 脉动（inline-block 才能稳定 transform）
+        "[data-error-indicator]{display:inline-block !important;animation:zc-fail-dot 1.6s ease-in-out infinite !important}"
       );
     }
     if (statusCss.length) css += statusCss.join("");
@@ -1183,7 +1185,7 @@
     r.step = step;
     r.value = val;
     r.style.cssText = "flex:1;accent-color:#38bdf8;cursor:pointer";
-    var num = el("span", "flex:0 0 38px;text-align:right;color:#ddd;font-size:11px", fmt(val));
+    var num = el("span", "flex:0 0 38px;text-align:right;color:#ddd;font-size:11px;white-space:nowrap", fmt(val));
     r.addEventListener("input", function () {
       num.textContent = fmt(r.value);
       onChange(Number(r.value));
@@ -1900,16 +1902,17 @@
       }
     }
 
-    // 紧凑两列网格：滑块并排，避免面板被堆成长条
+    // 紧凑两列网格：滑块并排，避免面板被堆成长条。
+    // minmax(0,1fr) 关键：1fr 默认 min-width:auto，内容宽于列时溢出重叠到下一列（字体重叠 bug 根因）
     function grid2(items) {
-      var wrap = el("div", "display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;margin-bottom:8px");
+      var wrap = el("div", "display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2px 16px;margin-bottom:8px");
       items.forEach(function (it) { wrap.appendChild(it); });
       return wrap;
     }
-    // 紧凑行：窄标签版 row（两列网格内用）
+    // 紧凑行：窄标签版 row（两列网格内用）。标签按内容收缩不换行，防挤压重叠
     function rowC(label, control) {
       var r = el("div", "display:flex;align-items:center;gap:6px;min-width:0");
-      r.appendChild(el("span", "flex:0 0 56px;color:#bbb;font-size:11px", label));
+      r.appendChild(el("span", "flex:0 0 auto;white-space:nowrap;color:#bbb;font-size:11px", label));
       r.appendChild(control);
       return r;
     }
