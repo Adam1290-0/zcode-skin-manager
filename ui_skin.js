@@ -58,6 +58,8 @@
       cometMode: false,
       breatheAmp: 0.3,
       breathePeriod: 6,
+      breatheStyle: "dim", // dim=整体明暗呼吸 / glow=光晕扩散呼吸
+      pauseOnHide: true,   // 窗口失焦/最小化时暂停动画省电
       hueCycle: false,
       hueRange: 60,
       states: {
@@ -65,7 +67,7 @@
         typing: { on: true, speedup: 1.5 },
         blur: { on: true, dim: 50 },
         send: { on: true, color: "#22D3EE", dur: 0.8 },
-        working: { on: true, mode: "flow", color: "#818CF8", period: 5 },
+        working: { on: true, mode: "flow", color: "#818CF8", period: 5, boost: 30 },
         done: { on: true, color: "#34D399", dur: 1.2 },
         error: { on: true, color: "#F59E0B", pulses: 2, dur: 1.6 },
         idleBack: 2
@@ -584,6 +586,35 @@
     reactive: { label: "Reactive（状态响应）", colors: ["#38D9E8", "#5B8CFF", "#A78BFA"], period: 22, brightness: 10, hueCycle: false }
   };
 
+  // 整套氛围预设：一键应用「配色 + 周期 + 流动强度 + 亮度 + 彗星 + 呼吸」的组合成品
+  var GLOW_VIBES = [
+    { name: "静谧呼吸", colors: ["#38D9E8", "#5B8CFF", "#A78BFA"], period: 14, brightness: 15, hotspotPct: 25, cometMode: false, breatheAmp: 0.25, breathePeriod: 6, breatheStyle: "dim", glowBlur: 12, glowOpacity: 40 },
+    { name: "霓虹脉冲", colors: ["#F0ABFC", "#E879F9", "#22D3EE"], period: 6, brightness: 28, hotspotPct: 65, cometMode: false, breatheAmp: 0, breatheStyle: "dim", glowBlur: 16, glowOpacity: 55 },
+    { name: "彗星掠过", colors: ["#5B8CFF", "#22D3EE"], period: 8, brightness: 22, hotspotPct: 50, cometMode: true, breatheAmp: 0, breatheStyle: "dim", glowBlur: 14, glowOpacity: 45 },
+    { name: "暖夜烛光", colors: ["#F5E6C8", "#D4A95C", "#C97B4A"], period: 20, brightness: 14, hotspotPct: 30, cometMode: false, breatheAmp: 0.2, breathePeriod: 8, breatheStyle: "glow", glowBlur: 18, glowOpacity: 50 }
+  ];
+
+  // HSL → hex（随机配色用）
+  function hslToHex(h, s, l) {
+    s /= 100; l /= 100;
+    var k = function (n) { return (n + h / 30) % 12; };
+    var a = s * Math.min(l, 1 - l);
+    var f = function (n) { return l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); };
+    return rgbToHex(f(0) * 255, f(8) * 255, f(4) * 255);
+  }
+
+  // 随机和谐配色：随机起始色相 + 等距色相环分布，固定适中饱和度/亮度，保证相邻色和谐
+  function randomPalette(n) {
+    var baseH = Math.floor(Math.random() * 360);
+    var sat = 55 + Math.floor(Math.random() * 30);   // 55-85
+    var lig = 52 + Math.floor(Math.random() * 16);   // 52-68
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      out.push(hslToHex((baseH + i * (360 / n)) % 360, sat, lig));
+    }
+    return out;
+  }
+
   // 运行时状态（不持久化）
   var glowHost = null;
   var glowOnceTimer = null;
@@ -712,6 +743,15 @@
       "@keyframes zc-glow-send{0%{filter:brightness(1)}25%{filter:brightness(2.4)}100%{filter:brightness(1)}}" +
       "@keyframes zc-glow-bloom{0%{filter:brightness(1)}35%{filter:brightness(1.9)}100%{filter:brightness(1)}}" +
       "@keyframes zc-glow-err{0%,100%{filter:brightness(1)}50%{filter:brightness(2.1)}}" +
+      // 呼吸样式（breatheStyle）：
+      //   dim  = 整体明暗呼吸（opacity，光芯+光晕同步起伏）
+      //   glow = 光晕扩散呼吸（光晕层 blur 半径脉动，光芯不动）——@property 注册 length 才能插值
+      "@property --zc-glow-bblur{syntax:'<length>';inherits:false;initial-value:0px}" +
+      "@keyframes zc-glow-breathe-glow{0%,100%{--zc-glow-bblur:0px}50%{--zc-glow-bblur:" + Math.round(Math.max(4, Number(g.glowBlur) || 10) * (0.5 + (Number(g.breatheAmp) || 0.3) * 2)) + "px}}" +
+      // 失焦/隐藏暂停（pauseOnHide）：JS 在 window blur / document hidden 时给 host 打 data-zc-paused
+      "." + GLOW_CLASS + "[data-zc-paused]::before,." + GLOW_CLASS + "[data-zc-paused]::after{animation-play-state:paused !important}" +
+      // 状态联动强化：working 时宿主叠加工作色柔光（box-shadow 过渡进出，像能量充能）
+      "." + GLOW_CLASS + "{transition:box-shadow .6s ease}" +
       // 不强制 position:relative——Slate 编辑器内部定位链条对 position 敏感，
       // 强制覆盖正是 v2.0.0 "输入框无法输入"的根因之一。改用 JS 检测：
       // 宿主本来没有定位时，才加我们自己的 class（data 驱动，可被 removeGlowHost 完整移除）
@@ -744,8 +784,8 @@
       "mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);" +
       "mask-composite:exclude;" +
       "opacity:calc(var(--zc-glow-b)/100);" +
-      // C: 叠加呼吸动画（与旋转并行），让光轨整体有缓慢明暗起伏
-      "animation:" + anim + ",zc-glow-ambient-breathe var(--zc-glow-bt) ease-in-out infinite;z-index:1}" +
+      // C: 呼吸动画（与旋转并行）。dim=明暗起伏；glow=光芯不动，光晕层单独做 blur 扩散呼吸
+      "animation:" + anim + (g.breatheAmp > 0 && (g.breatheStyle || "dim") === "dim" ? ",zc-glow-ambient-breathe var(--zc-glow-bt) ease-in-out infinite" : "") + ";z-index:1}" +
       // 光晕：外层模糊扩散，亮度跟随光芯。
       // 关键：必须和光芯一样做 ring mask 只画环形带，否则整张模糊矩形会盖在编辑器内容上
       // （v2.0.0 就是这么把输入框"糊住"导致用户反馈无法输入）
@@ -757,9 +797,15 @@
       "-webkit-mask-composite:xor;" +
       "mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);" +
       "mask-composite:exclude;" +
-      "filter:blur(var(--zc-glow-gblur));" +
+      // glow 呼吸时 blur 基础值 + 呼吸偏移量一起插值；dim 呼吸时保持固定 blur
+      "filter:blur(calc(var(--zc-glow-gblur) + var(--zc-glow-bblur)));" +
       "opacity:calc(var(--zc-glow-gb)/100*var(--zc-glow-b)/40);" +
-      "animation:" + anim + ",zc-glow-ambient-breathe var(--zc-glow-bt) ease-in-out infinite;z-index:-1}" +
+      "animation:" + anim +
+      (g.breatheAmp > 0
+        ? ((g.breatheStyle || "dim") === "glow"
+          ? ",zc-glow-breathe-glow var(--zc-glow-bt) ease-in-out infinite"
+          : ",zc-glow-ambient-breathe var(--zc-glow-bt) ease-in-out infinite")
+        : "") + ";z-index:-1}" +
       // 聚焦增强 / 失焦降亮
       "." + GLOW_CLASS + "[data-zc-focus]::before{opacity:calc((var(--zc-glow-b) + var(--zc-glow-fb))/100)}" +
       "." + GLOW_CLASS + "[data-zc-focus]::after{opacity:calc(var(--zc-glow-gb)/100*(var(--zc-glow-b) + var(--zc-glow-fb))/40)}" +
@@ -908,9 +954,12 @@
       glowHost.style.setProperty("--zc-glow-grad", glowStateGradient(w.color || "#818CF8"));
       glowHost.style.setProperty("--zc-glow-wt", Number(w.period) || 5);
       if ((w.mode || "flow") === "flow") glowHost.style.setProperty("--zc-glow-t", (Number(w.period) || 5) + "s");
+      // 状态联动强化：宿主叠工作色柔光（CSS transition 平滑淡入，能量充能感）
+      glowHost.style.boxShadow = "0 0 22px 4px " + rgbaStr(w.color || "#818CF8", 0.35);
     } else {
       glowHost.removeAttribute("data-zc-state");
       glowHost.removeAttribute("data-zc-wmode");
+      glowHost.style.boxShadow = ""; // 柔光随 transition 平滑淡出
       applyGlowInlineVars(c);
       // 刚发过消息且生成正常结束 → done；当前界面有失败红点 → error
       if (w.on && Date.now() - glowLastSendAt < 5 * 60 * 1000) {
@@ -928,6 +977,18 @@
   function bindGlowListeners(c) {
     if (glowListenersBound) return;
     glowListenersBound = true;
+    // 失焦/隐藏暂停（pauseOnHide）：ZCode 不在前台时冻结光轨动画，省电省 GPU
+    function setPaused(paused) {
+      var cc = getLiveCfg();
+      if (!cc.inputGlow || !cc.inputGlow.pauseOnHide) return;
+      if (glowHost) {
+        if (paused) glowHost.setAttribute("data-zc-paused", "1");
+        else glowHost.removeAttribute("data-zc-paused");
+      }
+    }
+    document.addEventListener("visibilitychange", function () { setPaused(document.hidden); });
+    window.addEventListener("blur", function () { setPaused(true); });
+    window.addEventListener("focus", function () { setPaused(false); });
     document.addEventListener("focusin", function (e) {
       var host = e.target && e.target.closest && e.target.closest("." + GLOW_CLASS);
       if (!host) return;
@@ -1716,7 +1777,7 @@
     if (!panel) {
       panel = el(
         "div",
-        "display:none;position:fixed;z-index:2147483000;width:360px;max-height:80vh;overflow-y:auto;background:rgba(23,23,23,.96);color:#eee;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.5);font:13px/1.5 'Segoe UI',sans-serif"
+        "display:none;position:fixed;z-index:2147483000;width:470px;max-height:80vh;overflow-y:auto;background:rgba(23,23,23,.96);color:#eee;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.5);font:13px/1.5 'Segoe UI',sans-serif"
       );
       panel.id = GLOW_PANEL_ID;
       document.body.appendChild(panel);
@@ -1839,9 +1900,22 @@
       }
     }
 
+    // 紧凑两列网格：滑块并排，避免面板被堆成长条
+    function grid2(items) {
+      var wrap = el("div", "display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;margin-bottom:8px");
+      items.forEach(function (it) { wrap.appendChild(it); });
+      return wrap;
+    }
+    // 紧凑行：窄标签版 row（两列网格内用）
+    function rowC(label, control) {
+      var r = el("div", "display:flex;align-items:center;gap:6px;min-width:0");
+      r.appendChild(el("span", "flex:0 0 56px;color:#bbb;font-size:11px", label));
+      r.appendChild(control);
+      return r;
+    }
+
     // 状态行：开关 + 名称 + ▶ 预览 + 可选参数
-    function stateRow(title, name, paramCtrls) {
-      var r = el("div", "display:flex;align-items:center;gap:5px;margin-bottom:6px;flex-wrap:wrap");
+    function stateRow(title, name, paramCtrls) {      var r = el("div", "display:flex;align-items:center;gap:5px;margin-bottom:6px;flex-wrap:wrap");
       var s = g.states[name];
       r.appendChild(mkCheck(s.on !== false, function (v) { s.on = v; persist(); }));
       r.appendChild(el("span", "flex:0 0 auto;color:#ccc;font-size:11px;min-width:56px", title));
@@ -1880,9 +1954,35 @@
       syncMain();
     }));
 
-    // 预设配色色卡
-    var palWrap = el("div", "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px");
-    palWrap.appendChild(el("div", "width:100%;color:#999;font-size:10px;margin-bottom:2px", "预设配色"));
+    // 整套氛围预设：一键应用「配色+周期+流动+亮度+彗星+呼吸」的成品组合
+    var vibeWrap = el("div", "display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center");
+    vibeWrap.appendChild(el("span", "color:#999;font-size:10px;flex:0 0 auto", "氛围预设"));
+    GLOW_VIBES.forEach(function (vibe) {
+      var b = mkBtn(vibe.name, "一键应用整套氛围参数");
+      b.style.cssText += ";padding:2px 8px;font-size:11px";
+      b.onclick = function () {
+        g.colors = vibe.colors.slice();
+        g.period = vibe.period;
+        g.brightness = vibe.brightness;
+        g.hotspotPct = vibe.hotspotPct;
+        g.cometMode = vibe.cometMode;
+        g.breatheAmp = vibe.breatheAmp;
+        g.breathePeriod = vibe.breathePeriod;
+        g.breatheStyle = vibe.breatheStyle;
+        g.glowBlur = vibe.glowBlur;
+        g.glowOpacity = vibe.glowOpacity;
+        g.mode = "custom";
+        persist();
+        rebuild();
+        syncMain();
+      };
+      vibeWrap.appendChild(b);
+    });
+    secA.appendChild(vibeWrap);
+
+    // 预设配色色卡 + 🎲 随机配色
+    var palWrap = el("div", "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center");
+    palWrap.appendChild(el("span", "color:#999;font-size:10px;flex:0 0 auto;margin-right:2px", "配色"));
     GLOW_PALETTE.forEach(function (p) {
       var chip = el("div", "width:44px;height:22px;border-radius:6px;cursor:pointer;border:2px solid " +
         (JSON.stringify(p.colors) === JSON.stringify(g.colors) ? "#38bdf8" : "rgba(255,255,255,.15)") +
@@ -1895,6 +1995,14 @@
       };
       palWrap.appendChild(chip);
     });
+    var rndBtn = mkBtn("🎲", "随机生成一组和谐配色（等距色相环）");
+    rndBtn.style.cssText += ";padding:2px 8px;font-size:12px;margin-left:auto";
+    rndBtn.onclick = function () {
+      g.colors = randomPalette(Math.max(2, Math.min(6, g.colors.length || 3)));
+      persist();
+      rebuild();
+    };
+    palWrap.appendChild(rndBtn);
     secA.appendChild(palWrap);
 
     // 渐变色标编辑器（2–6 个）
@@ -1938,21 +2046,38 @@
       "alt": "往返摆动"
     }, function (v) { g.direction = v; persist(); })));
 
-    secA.appendChild(row("循环周期", slider(g.period, function (v) { g.period = v; persist(); }, 1, 120, 1, function (v) { return v + "s"; })));
-    secA.appendChild(row("亮度", slider(g.brightness, function (v) { g.brightness = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })));
-    secA.appendChild(row("光轨宽度", slider(g.trackWidth, function (v) { g.trackWidth = v; persist(); }, 0.5, 8, 0.5, function (v) { return v + "px"; })));
-    secA.appendChild(row("光晕扩散", slider(g.glowBlur, function (v) { g.glowBlur = v; persist(); }, 0, 60, 1, function (v) { return v + "px"; })));
-    secA.appendChild(row("光晕强度", slider(g.glowOpacity, function (v) { g.glowOpacity = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })));
-    // A: 流动强度——控制灯头与暗谷的对比度，越大流动感越强（默认 40%）
-    secA.appendChild(row("流动强度", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); rebuild(); }, 0, 80, 5, function (v) { return v + "%"; })));
-    // 彗星模式：单亮头+渐隐长尾绕框跑（经典跑马灯），替代三灯头流动
-    secA.appendChild(row("彗星模式", mkCheck(g.cometMode, function (v) { g.cometMode = v; persist(); rebuild(); }, "单彗星绕框（拖尾跑马灯）")));
-    // 流动强度：灯头与暗谷的对比度，越大"灯环绕框流动"的感觉越明显（0=均匀渐变无流动感）
-    secA.appendChild(row("流动强度", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); }, 0, 80, 5, function (v) { return v + "%"; })));
+    // 参数滑块两列网格（加宽面板后并排，不再往下堆长条）
+    secA.appendChild(grid2([
+      rowC("循环周期", slider(g.period, function (v) { g.period = v; persist(); }, 1, 120, 1, function (v) { return v + "s"; })),
+      rowC("亮度", slider(g.brightness, function (v) { g.brightness = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })),
+      rowC("光轨宽度", slider(g.trackWidth, function (v) { g.trackWidth = v; persist(); }, 0.5, 8, 0.5, function (v) { return v + "px"; })),
+      rowC("光晕扩散", slider(g.glowBlur, function (v) { g.glowBlur = v; persist(); }, 0, 60, 1, function (v) { return v + "px"; })),
+      rowC("光晕强度", slider(g.glowOpacity, function (v) { g.glowOpacity = v; persist(); }, 0, 100, 1, function (v) { return v + "%"; })),
+      rowC("流动强度", slider(g.hotspotPct, function (v) { g.hotspotPct = v; persist(); rebuild(); }, 0, 80, 5, function (v) { return v + "%"; }))
+    ]));
+
+    // 独立开关行（紧凑 chip）
+    var toggleRow = el("div", "display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:8px;align-items:center");
+    toggleRow.appendChild(mkCheck(g.cometMode, function (v) { g.cometMode = v; persist(); rebuild(); }, "彗星模式"));
+    toggleRow.appendChild(mkCheck(g.pauseOnHide, function (v) { g.pauseOnHide = v; persist(); }, "失焦暂停（省电）"));
+    secA.appendChild(toggleRow);
+
     // C: 亮度呼吸——整体明暗起伏幅度与周期
-    var breatheRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
+    var breatheRow = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap");
     breatheRow.appendChild(mkCheck(g.breatheAmp > 0, function (v) { g.breatheAmp = v ? 0.3 : 0; persist(); rebuild(); }, "亮度呼吸"));
     if (g.breatheAmp > 0) {
+      var styleSel = document.createElement("select");
+      styleSel.style.cssText = "background:rgba(30,30,30,.95);border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:2px 4px;color:#eee;font-size:11px";
+      [["dim", "明暗呼吸"], ["glow", "光晕扩散"]].forEach(function (pair) {
+        var opt = document.createElement("option");
+        opt.value = pair[0];
+        opt.textContent = pair[1];
+        opt.style.cssText = "background:#1e1e1e;color:#eee";
+        if (pair[0] === (g.breatheStyle || "dim")) opt.selected = true;
+        styleSel.appendChild(opt);
+      });
+      styleSel.addEventListener("change", function () { g.breatheStyle = styleSel.value; persist(); });
+      breatheRow.appendChild(styleSel);
       breatheRow.appendChild(slider(g.breathePeriod, function (v) { g.breathePeriod = v; persist(); }, 1, 30, 1, function (v) { return v + "s"; }));
     }
     secA.appendChild(breatheRow);
@@ -2116,7 +2241,7 @@
     var wasOpen = panel.style.display === "block";
     if (!wasOpen) {
       var r = anchorBtn.getBoundingClientRect();
-      var pw = 360;
+      var pw = 470;
       var left = r.right + 8;
       if (left + pw > window.innerWidth - 8) left = r.left - pw - 8;
       if (left < 8) left = 8;
