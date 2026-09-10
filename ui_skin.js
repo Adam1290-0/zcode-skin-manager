@@ -318,18 +318,21 @@
     if (c.statusSuccess) statusCss.push(".theme-zai-dark{--color-success:" + c.statusSuccess + "}");
     if (c.statusFailPulse) {
       // 心跳式呼吸光晕：双层 box-shadow 波纹扩散 + 红点自身脉动。
-      // 根因修复（v2.0.4）：之前用 CSS 变量 var(--zc-fail-glow) 等在 @keyframes 内引用，
-      // 但关键帧内的 var() 继承自动画目标元素而非 .theme-zai-dark，导致变量为空、动画无效。
-      // 改为直接把颜色/尺寸/透明度内联到 keyframes 字符串里，彻底消除继承依赖。
+      // v2.0.8 根因：v2.0.4 加的 opacity:fo 关键帧会把整个红点（含实心红背景）也一起淡掉，
+      // 导致红点+光晕一起"消失看似无效"；且 box-shadow 扩散层用了不透明红，成了实心圈。
+      // 修复：去掉 opacity 关键帧；扩散层用半透明 rgba（强度 fo 决定透明度），
+      // 红点仅用 transform:scale 做脉动，光晕从红点边缘波纹式外扩再消散。
       var fs = Math.max(4, Math.min(40, Number(c.statusFailSize) || 13));
       var fo = Math.max(0.05, Math.min(0.9, Number(c.statusFailOpacity) || 0.25));
-      var glowColor = c.statusError || "rgba(255,80,80,.85)";
+      var glow = c.statusError ? rgbaStr(c.statusError, fo) : "rgba(255,80,80," + fo + ")";
+      var glowFull = c.statusError ? c.statusError : "rgba(255,80,80,.95)";
       var midR = Math.round(fs * 0.55);
       statusCss.push(
+        "[data-error-indicator]{display:inline-block !important}" +
         "@keyframes zc-fail-pulse{" +
-        "0%{box-shadow:0 0 0 0 " + glowColor + ";transform:scale(1)}" +
-        "55%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px " + glowColor + ";transform:scale(1.25);opacity:" + fo + "}" +
-        "100%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px transparent;transform:scale(1);opacity:1}" +
+        "0%{box-shadow:0 0 0 0 " + glowFull + ";transform:scale(1)}" +
+        "55%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px " + glow + ";transform:scale(1.35)}" +
+        "100%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px transparent;transform:scale(1)}" +
         "}" +
         "[data-error-indicator]{animation:zc-fail-pulse 1.6s ease-in-out infinite !important}"
       );
