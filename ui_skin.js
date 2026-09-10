@@ -319,26 +319,22 @@
     if (c.statusIdle) statusCss.push("[data-idle-indicator]{background-color:" + c.statusIdle + " !important}");
     if (c.statusSuccess) statusCss.push(".theme-zai-dark{--color-success:" + c.statusSuccess + "}");
     if (c.statusFailPulse) {
-      // 心跳式呼吸光晕：光晕波纹挂在红点的 16px 父级槽位容器上（:has() 选择），红点本体只做 scale 脉动。
-      // 为何挂父级：红点仅 6px（h-1.5），box-shadow 挂 6px 元素上波纹被尺寸压制、深色侧栏上几乎不可见——
-      // 这就是连续几版"没效果"的视觉根因。父级槽位 16px，同样参数的波纹大一圈多。
-      // 兜底：:has() 不支持的老 Chromium 会整条规则失效，红点 scale 脉动仍然可见（不白屏不报错）。
-      var fs = Math.max(4, Math.min(40, Number(c.statusFailSize) || 13));
-      var fo = Math.max(0.05, Math.min(0.9, Number(c.statusFailOpacity) || 0.25));
+      // 心跳式呼吸光晕。连续 5 版"没效果"的教训总结：
+      //   ① 不要用 span:has(...) —— 依赖 :has 支持，失效则光晕全无；
+      //   ② 不要用纯 spread 的 box-shadow（0 0 0 Npx）——那是硬边环，深色侧栏上几乎不可见；
+      //   ③ 不要动 opacity —— 会把红点本体一起淡掉。
+      // 最终方案：柔和发光 = box-shadow blur（模糊半径大）+ spread（扩散），
+      //           直接作用在红点自身（最兼容），红点放大到 1.8 倍做脉动。
+      var fs = Math.max(6, Math.min(40, Number(c.statusFailSize) || 20));       // 发光半径（blur）
+      var fo = Math.max(0.1, Math.min(0.9, Number(c.statusFailOpacity) || 0.5)); // 发光强度（alpha）
       var glow = c.statusError ? rgbaStr(c.statusError, fo) : "rgba(255,80,80," + fo + ")";
-      var glowFull = c.statusError ? c.statusError : "rgba(255,80,80,.95)";
-      var midR = Math.round(fs * 0.55);
       statusCss.push(
         "@keyframes zc-fail-pulse{" +
-        "0%{box-shadow:0 0 0 0 " + glowFull + "}" +
-        "55%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px " + glow + "}" +
-        "100%{box-shadow:0 0 0 " + midR + "px transparent,0 0 0 " + fs + "px transparent}" +
+        "0%{box-shadow:0 0 0 0 rgba(255,80,80,0);transform:scale(1)}" +
+        "50%{box-shadow:0 0 " + fs + "px " + Math.round(fs * 0.35) + "px " + glow + ";transform:scale(1.8)}" +
+        "100%{box-shadow:0 0 0 0 rgba(255,80,80,0);transform:scale(1)}" +
         "}" +
-        "@keyframes zc-fail-dot{0%,100%{transform:scale(1)}55%{transform:scale(1.5)}}" +
-        // 光晕：挂在包含红点的槽位容器（16px）上
-        "span:has(> [data-error-indicator]){animation:zc-fail-pulse 1.6s ease-in-out infinite !important;border-radius:9999px}" +
-        // 红点本体：scale 脉动（inline-block 才能稳定 transform）
-        "[data-error-indicator]{display:inline-block !important;animation:zc-fail-dot 1.6s ease-in-out infinite !important}"
+        "[data-error-indicator]{display:inline-block !important;animation:zc-fail-pulse 1.6s ease-in-out infinite !important}"
       );
     }
     if (statusCss.length) css += statusCss.join("");
