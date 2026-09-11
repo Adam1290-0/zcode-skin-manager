@@ -319,12 +319,12 @@
     if (c.statusIdle) statusCss.push("[data-idle-indicator]{background-color:" + c.statusIdle + " !important}");
     if (c.statusSuccess) statusCss.push(".theme-zai-dark{--color-success:" + c.statusSuccess + "}");
     if (c.statusFailPulse) {
-      // 心跳式呼吸光晕。连续 5 版"没效果"的教训总结：
-      //   ① 不要用 span:has(...) —— 依赖 :has 支持，失效则光晕全无；
-      //   ② 不要用纯 spread 的 box-shadow（0 0 0 Npx）——那是硬边环，深色侧栏上几乎不可见；
-      //   ③ 不要动 opacity —— 会把红点本体一起淡掉。
-      // 最终方案：柔和发光 = box-shadow blur（模糊半径大）+ spread（扩散），
-      //           直接作用在红点自身（最兼容），红点放大到 1.8 倍做脉动。
+      // 失败红点呼吸光晕。连续 6 版"没效果"的真正根因（2026-09-11 用户 DevTools 实测定位）：
+      //   ZCode 3.11.2 里侧栏对话条目的失败红点，class = "size-1.5 rounded-full bg-destructive"，
+      //   **没有任何 data-error-indicator 属性**。旧锚点 [data-error-indicator] 从头到尾都没匹配到它。
+      //   它和"模型列表失效红点"（多一个 shrink-0 类）的区别就是有无 shrink-0，
+      //   所以用 :not(.shrink-0) 精确锁定，避免误伤模型选择器里的红点。
+      // 柔和发光：box-shadow 真 blur（模糊半径 fs）+ spread，直接作用红点自身；红点 scale 脉动。
       var fs = Math.max(6, Math.min(40, Number(c.statusFailSize) || 20));       // 发光半径（blur）
       var fo = Math.max(0.1, Math.min(0.9, Number(c.statusFailOpacity) || 0.5)); // 发光强度（alpha）
       var glow = c.statusError ? rgbaStr(c.statusError, fo) : "rgba(255,80,80," + fo + ")";
@@ -334,6 +334,10 @@
         "50%{box-shadow:0 0 " + fs + "px " + Math.round(fs * 0.35) + "px " + glow + ";transform:scale(1.8)}" +
         "100%{box-shadow:0 0 0 0 rgba(255,80,80,0);transform:scale(1)}" +
         "}" +
+        // 新锚点：侧栏对话条目失败红点（无 shrink-0 的 size-1.5 红点）
+        "span.size-1\\.5.rounded-full.bg-destructive:not(.shrink-0){" +
+        "animation:zc-fail-pulse 1.6s ease-in-out infinite !important}" +
+        // 兜底：老版本带 data-error-indicator 的红点仍兼容
         "[data-error-indicator]{display:inline-block !important;animation:zc-fail-pulse 1.6s ease-in-out infinite !important}"
       );
     }
