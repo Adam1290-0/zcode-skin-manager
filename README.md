@@ -1,8 +1,10 @@
 # ZCode Skin Manager / ZCode 皮肤管理器
 
-> 🔗 **广告**：[sharellm.net](https://sharellm.net/sign-up?aff=wb5b) — AI 模型共享平台，海量模型一键体验
+> 🔗 **广告**：[sharellm.net](https://sharellm.net/sign-up?aff=wb5b) — AI 模型共享平台，海量模型一键体验（注册邀请链接）
 
 [English](#english) · [中文](#中文)
+
+![Version](https://img.shields.io/badge/version-2.0.12-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 给 [ZCode](https://zcode.z.ai) 桌面端加上「皮肤设置」功能：壁纸（图片/视频）、14 区透明度（带红框实时预览）、毛玻璃、动态特效、加载图标 GIF 替换，右上角一个可拖动的 🎨 按钮一键调节。
 
@@ -174,7 +176,7 @@ Key points:
 3. 等待出现 `[SUCCESS] Patch completed!`
 4. 重新打开 ZCode → 右上角出现 🎨 按钮
 
-> 💡 **与其他注入补丁共存**：patch 从**当前** app.asar 解包（不是老备份），注入是幂等的——重打本补丁会自动替换旧注入、保留其他补丁（如 zcode-account-switcher）的修改，两个补丁可以任意顺序反复打，互不覆盖。
+> 💡 **与其他注入补丁共存**：patch 从**当前** app.asar 解包（不是老备份），注入是幂等的——重打本补丁会自动替换旧注入、保留其他补丁（如 [zcode-account-switcher](https://github.com/Adam1290-0/zcode-account-switcher)、[zcode-pin](https://github.com/Adam1290-0/zcode-pin)、[zcode-route-override](https://github.com/Adam1290-0/zcode-route-override)）的修改，任意顺序反复打，互不覆盖。
 
 ### 卸载
 
@@ -237,6 +239,22 @@ ZCode 是 Electron + React + Tailwind v4 应用，所有颜色由 `--color-*` CS
 - 加载圈是 lucide SVG + `.animate-spin` + `currentColor`，因此可整体替换为 GIF
 
 ### 更新日志 / Changelog
+
+### v2.0.12
+
+- 🐛 根治失败红点光晕不生效（v2.0.4 起六轮修复的收口）：ZCode 3.11.2 的失败红点是无 data 属性的 `span.size-1\.5.rounded-full.bg-destructive`，弃用 `[data-error-indicator]` 选择器，改用 `:not(.shrink-0)` 精确排除模型选择器的非法模型红点
+
+### v2.0.11
+
+- 🐛 失败红点光晕改柔和 blur 发光
+
+### v2.0.10
+
+- 🐛 修复字体重叠 + 光晕可视化
+
+### v2.0.9
+
+- 🎛️ 面板紧凑两列 + 随机配色 + 氛围预设 + 失焦暂停
 
 ### v2.0.8
 
