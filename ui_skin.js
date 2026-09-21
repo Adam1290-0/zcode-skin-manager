@@ -38,6 +38,10 @@
     statusFailPulse: false,
     statusFailSize: 13,
     statusFailOpacity: 0.25,
+    // 用量状态条联动（xhwxt/zcode-token-usage-statusbar，MIT）：
+    // showBar 控制悬浮条显隐（写它的 zusage3.show 键）；panelFollowCard 让它的
+    // 设置面板背景跟随本皮肤「卡片」透明度变量（--color-card）
+    usageBar: { showBar: true, panelFollowCard: true },
     uiFontSize: 0,
     scrollbarWidth: 0,
     accentColor: "",
@@ -342,6 +346,16 @@
       );
     }
     if (statusCss.length) css += statusCss.join("");
+
+    // 用量状态条联动（xhwxt/zcode-token-usage-statusbar）：它的设置面板 .panel 原生用
+    // color-mix(var(--color-card) 96%, transparent)——写死 96% 接近不透明，不吃皮肤卡片透明度。
+    // panelFollowCard 开启时直接用 --color-card（本皮肤已按「卡片」滑杆调成半透明），
+    // 并保留它的毛玻璃 blur，视觉与皮肤面板体系一致。
+    if (c.usageBar && c.usageBar.panelFollowCard) {
+      css +=
+        ".zusage-root .panel{background:var(--color-card) !important}" +
+        ".zusage-tip{background:var(--color-card) !important}";
+    }
 
     // 外观定制：字号 / 滚动条 / 主题色 / 终端光标 / 圆角缩放（全部纯 CSS 变量覆盖）
     var lookCss = [];
@@ -1067,6 +1081,35 @@
     syncGlowHost(c);
   }
 
+  /* ---------- 用量状态条联动（xhwxt/zcode-token-usage-statusbar，MIT） ----------
+   * 它是独立注入（主进程 loader + 自己的悬浮条），本皮肤只做两件联动：
+   *   ① showBar：显隐悬浮条——优先直接操作 DOM（#zusage-bar display），
+   *      同时写它的 localStorage 键 zusage3.show（它自己重启后仍生效）；
+   *   ② panelFollowCard：CSS 覆盖（见 buildCss），设置面板背景吃皮肤「卡片」透明度。
+   * 未安装状态条时（页面无 #zusage-bar），面板控制组整体不显示。 */
+
+  function usageBarPresent() {
+    return !!document.querySelector(".zusage-root, #zusage-bar");
+  }
+
+  function applyUsageBar(c) {
+    var bar = document.querySelector("#zusage-bar, .zusage-root");
+    if (!bar) return;
+    var show = !!(c.usageBar && c.usageBar.showBar);
+    if (show) bar.style.removeProperty("display");
+    else bar.style.setProperty("display", "none", "important");
+    // 同步写它的持久化键（它自己的 show 开关存 zusage3.show），保持两边状态一致
+    try {
+      var raw = localStorage.getItem("zusage3.show");
+      var obj = raw ? JSON.parse(raw) : {};
+      if (obj.win !== undefined || raw) {
+        // 键存在：只改窗口项，保留它其余显示项配置
+        obj.win = show ? 1 : 0;
+        localStorage.setItem("zusage3.show", JSON.stringify(obj));
+      }
+    } catch (e) { /* 它的键损坏时不写，避免覆盖 */ }
+  }
+
   /* ---------- 滑块高亮预览：拖动/悬停滑块时用红框标出受影响的区域 ---------- */
 
   var HL_STYLE_ID = "zcode-skin-hl-style";
@@ -1273,6 +1316,7 @@
     applyImgs(c);
     applyEffect(c);
     applyGlow(c);
+    applyUsageBar(c);
   }
 
   function buildPanel(panel, c) {
@@ -1647,6 +1691,40 @@
     glowCfgBtn.onclick = function () { buildGlowPanel(glowCfgBtn, c); };
     glowRow.appendChild(glowCfgBtn);
     panel.appendChild(glowRow);
+
+    // 用量状态条联动（xhwxt/zcode-token-usage-statusbar）：检测到悬浮条才显示本分组，
+    // 未安装状态条的用户看不到（不产生"开关无效"的困惑）
+    if (usageBarPresent()) {
+      var ubSub = el("div", "margin:10px 0 6px;color:#999;font-size:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px", "📊 用量状态条");
+      panel.appendChild(ubSub);
+      if (!c.usageBar) c.usageBar = { showBar: true, panelFollowCard: true };
+      var ubRow1 = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
+      var ubCb = document.createElement("input");
+      ubCb.type = "checkbox";
+      ubCb.checked = !!c.usageBar.showBar;
+      ubCb.style.cssText = "accent-color:#38bdf8";
+      ubCb.addEventListener("change", function () {
+        c.usageBar.showBar = ubCb.checked;
+        refreshAll(c);
+      });
+      ubRow1.appendChild(ubCb);
+      ubRow1.appendChild(el("span", "flex:1;color:#ccc;font-size:12px", "显示悬浮条（输入框下方）"));
+      panel.appendChild(ubRow1);
+      var ubRow2 = el("div", "display:flex;align-items:center;gap:8px;margin-bottom:8px");
+      var pfCb = document.createElement("input");
+      pfCb.type = "checkbox";
+      pfCb.checked = !!c.usageBar.panelFollowCard;
+      pfCb.style.cssText = "accent-color:#38bdf8";
+      pfCb.addEventListener("change", function () {
+        c.usageBar.panelFollowCard = pfCb.checked;
+        refreshAll(c);
+      });
+      ubRow2.appendChild(pfCb);
+      ubRow2.appendChild(el("span", "flex:1;color:#ccc;font-size:12px", "设置框背景跟随「卡片」透明度"));
+      panel.appendChild(ubRow2);
+      panel.appendChild(el("div", "color:#888;font-size:10px;line-height:1.5;margin-bottom:4px",
+        "数据由 zcode-token-usage-statusbar 提供（需单独安装）；其⚙面板内各项开关仍以它自己为准。"));
+    }
 
     // 分区透明度
     var o = c.opacities || {};
@@ -2376,6 +2454,10 @@
     applyImgs(cfg);
     applyEffect(cfg);
     applyGlow(cfg);
+    // 状态条注入是主进程 loader 异步挂载的，晚于皮肤脚本——延迟重试确保显隐联动生效
+    [1500, 4000, 8000].forEach(function (ms) {
+      setTimeout(function () { applyUsageBar(cfg); }, ms);
+    });
     initUI(cfg);
     // 定时兜底：ZCode 的 React 渲染是异步的，observer 可能因时序漏触发（例如初次渲染
     // 发生在 observer 创建之前、或 rAF 节流吞掉了关键批次）。延迟重跑 sync 确保打标到位。
