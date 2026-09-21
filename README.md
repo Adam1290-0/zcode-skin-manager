@@ -1,6 +1,7 @@
 # ZCode Skin Manager / ZCode 皮肤管理器
 
 > 🔗 **广告**：[sharellm.net](https://sharellm.net/sign-up?aff=wb5b) — AI 模型共享平台，海量模型一键体验（注册邀请链接）
+> 🔔 **本项目已合并进 [zcode-mod-kit](https://github.com/Adam1290-0/zcode-mod-kit)（五合一整合包），本仓库仅保留历史版本，不再单独更新。**
 
 [English](#english) · [中文](#中文)
 
