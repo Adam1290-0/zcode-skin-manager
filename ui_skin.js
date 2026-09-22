@@ -2425,6 +2425,12 @@
       e.stopPropagation();
       var showing = panel.style.display === "block";
       if (!showing) {
+        // Rebuild on open: the panel is built once at boot, when the statusbar
+        // (mounted asynchronously by its main-process loader) is not there yet,
+        // so the usageBar group is skipped. Opening the panel is the only
+        // reliable moment the bar is already mounted — rebuild here so the
+        // group appears even though boot-time detection missed it.
+        buildPanel(panel, c);
         // 面板出现在按钮附近
         var r = btn.getBoundingClientRect();
         var pw = 340;
