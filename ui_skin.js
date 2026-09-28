@@ -2,6 +2,43 @@
   if (window.__ZCODE_SKIN_UI__) return;
   window.__ZCODE_SKIN_UI__ = true;
 
+  // ---- mod-kit update check (baked by inject.py --kit-version) --------------
+  var KIT_VERSION = "__ZCKIT_VERSION__";
+  var KIT_REPO = "Adam1290-0/zcode-mod-kit";
+  // Fire-and-forget once per calendar day (localStorage day stamp), silent on
+  // every failure; result lands in window.__zkitUpdate and the panel renders
+  // a banner row while remote > local.
+  (function () {
+    // Format check, NOT a placeholder-string check: the injector replaces the
+    // placeholder everywhere in this file, so an indexOf('<placeholder>')
+    // guard would become indexOf('<version>') >= 0 after baking — always true
+    // — and the update check would silently never run.
+    if (!/^[0-9]+(\.[0-9]+)*$/.test(String(KIT_VERSION))) return; // not baked
+    try {
+      var today = new Date().toISOString().slice(0, 10);
+      if (localStorage.getItem("zkit_last_check") === today) return;
+      localStorage.setItem("zkit_last_check", today);
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, 8000);
+      fetch("https://api.github.com/repos/" + KIT_REPO + "/releases/latest",
+            { signal: ctrl.signal })
+        .then(function (r) { clearTimeout(timer); return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d || !d.tag_name) return;
+          var remote = String(d.tag_name).replace(/^v/, "");
+          var rn = remote.split("."), mn = String(KIT_VERSION).split(".");
+          var newer = false;
+          for (var i = 0; i < 3; i++) {
+            var a = parseInt(rn[i] || "0", 10), b = parseInt(mn[i] || "0", 10);
+            if (a > b) { newer = true; break; }
+            if (a < b) break;
+          }
+          window.__zkitUpdate = { newer: newer, tag: remote };
+        })
+        .catch(function () {});
+    } catch (e) {}
+  })();
+
   var LS_KEY = "zcode-skin-config";
   var STYLE_ID = "zcode-skin-style";
   var IMG_ID = "zcode-skin-img";
@@ -1321,6 +1358,23 @@
 
   function buildPanel(panel, c) {
     panel.innerHTML = "";
+
+    // update-available banner (first row, above the header) while remote > local
+    try {
+      if (window.__zkitUpdate && window.__zkitUpdate.newer) {
+        var up = el("div", "margin:0 0 10px;padding:8px 12px;border-radius:8px;cursor:pointer;" +
+          "font-size:12.5px;font-weight:600;color:#fde68a;background:rgba(251,191,36,.12);" +
+          "border:1px solid rgba(251,191,36,.45)");
+        up.textContent = "⚠ Mod Kit v" + window.__zkitUpdate.tag +
+          " 可用 — 点击打开更新页";
+        up.onclick = function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          try { window.open("https://github.com/Adam1290-0/zcode-mod-kit/releases/latest", "_blank"); } catch (e) {}
+        };
+        panel.appendChild(up);
+      }
+    } catch (e) {}
 
     var head = el("div", "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px");
     head.appendChild(el("div", "font-weight:600;font-size:14px;color:#fff", "🎨 皮肤设置"));
