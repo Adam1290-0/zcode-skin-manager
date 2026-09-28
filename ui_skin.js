@@ -1257,14 +1257,17 @@
     max = max || 1;
     step = step || 0.05;
     fmt = fmt || function (v) { return Number(v).toFixed(2); };
-    var wrap = el("div", "flex:1;display:flex;align-items:center;gap:6px");
+    // min-width:0 on both wrap and input: a flex item defaults to
+    // min-width:auto, so the range's intrinsic ~130px width would overflow
+    // the 2-column grid cells and overlap the neighboring labels/values.
+    var wrap = el("div", "flex:1;min-width:0;display:flex;align-items:center;gap:6px");
     var r = document.createElement("input");
     r.type = "range";
     r.min = min;
     r.max = max;
     r.step = step;
     r.value = val;
-    r.style.cssText = "flex:1;accent-color:#38bdf8;cursor:pointer";
+    r.style.cssText = "flex:1;min-width:0;accent-color:#38bdf8;cursor:pointer";
     var num = el("span", "flex:0 0 38px;text-align:right;color:#ddd;font-size:11px;white-space:nowrap", fmt(val));
     r.addEventListener("input", function () {
       num.textContent = fmt(r.value);
